@@ -1,0 +1,12 @@
+[project]
+name = "slurm-observability-backend"
+version = "0.1.0"
+description = "Backend for the Slurm Observability MVP"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+]
+
+[tool.uv]
+dev-dependencies = []
