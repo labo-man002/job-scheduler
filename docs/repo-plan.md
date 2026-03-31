@@ -4,8 +4,9 @@
 - **Repo name:** `slurm-observability`
 - **Visibility:** private for now
 - **Repo model:** monorepo
-- **First milestone:** `MVP Hero Surface`
-- **First merge request:** `Bootstrap monorepo skeleton and MVP design doc`
+- **First milestone:** `Milestone 1 - MVP Foundation and Hero Surface Runway`
+- **Current merge request:** `docs: add MVP architecture, snapshot contract, and milestone 1 plan`
+- **Next implementation focus:** establish the semantic spine that unblocks backend, frontend, and platform work in parallel
 
 ## First Merge Request Scope
 The first MR should stay intentionally small and clean.
@@ -37,7 +38,7 @@ Start with a small label set:
 - `env`
 - `docs`
 
-## First Issue Set
+## Milestone 1 Issue Set
 
 ### 1. Bootstrap monorepo skeleton
 **Goal:** create the minimal repository structure and documentation baseline for the MVP.

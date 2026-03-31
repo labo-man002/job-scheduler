@@ -16,3 +16,6 @@ Early MVP bootstrap.
 See:
 - `docs/mvp-doc.md`
 - `docs/repo-plan.md`
+- `docs/architecture.md`
+- `docs/cluster-snapshot-v0.md`
+- `docs/milestone-1.md`
