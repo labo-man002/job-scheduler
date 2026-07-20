@@ -1,57 +1,152 @@
-# slurm-observability
+# Workload Management System
 
-An operator-first, observability-first UI for Slurm clusters.
+A from-scratch workload management system: a client submits a job, a scheduler orders the queue, a placer assigns the job to a node, and the resulting allocation is tracked in a database.
 
-This project aims to make cluster state legible by combining:
-- topology-aware resource views
-- allocation overlays
-- queue context
-- placement visibility
-- fragmentation and scarcity insight
+Built with **FastAPI** (backend) and **TypeScript** (frontend). Design history lives in issues #25–#27.
 
 ## Status
 
-Early MVP bootstrap.
+Design phase. Class diagram below is the current agreed shape; implementation scaffolding is starting in `backend/` and `frontend/`.
 
-## How We Work
+## Class diagram
 
-We are building this as a focused, operator-first product — not as a generic Slurm dashboard, not as a portal clone, and not as a premature all-in-one control plane.
+```mermaid
+classDiagram
+    direction TB
 
-### Product standard
-- Keep the wedge sharp: **make placeability legible**.
-- Prioritize operator understanding of:
-  - queue state
-  - allocation shape
-  - topology/resource state
-  - fragmentation / scarcity
-  - scheduler consequences
-- Prefer useful explanation over raw data dumps.
-- Prefer readable 2D operator workflows over flashy but weak visualization.
+    class Client {
+        +id: int
+        +institute: str
+        +connect() None
+        +disconnect() None
+        +submit_job(job) Job
+        +cancel_job(job_id) None
+        +get_allocation_details(job_id) Allocation
+    }
 
-### Engineering standard
-- Keep the backend as the semantic layer.
-- Keep adapters thin and normalize upstream data early.
-- Do not leak raw Slurm structures directly into the UI contract unless there is a strong reason.
-- Use shared contracts and fixtures so backend, frontend, and demo work can move in parallel.
-- Avoid premature architecture complexity; one solid backend + one solid frontend is enough for MVP.
+    class Job {
+        +job_id: int
+        +owner: Client
+        +priority: Priority
+        +submitted_at: datetime
+        +duration_minutes: int
+        +status: JobStatus
+        +requirements: list~ResourceRequest~
+    }
 
-### Team workflow
-- **Khalil:** domain model, Slurm normalization, semantics, API contracts
-- **Web:** frontend/operator surface, topology/grid UX, drilldowns, interaction design
-- **Cloud/DevOps:** local/dev stack, containers/compose, CI/CD, replay/demo environment
+    class ResourceRequest {
+        +resource_type: ResourceType
+        +amount: int
+    }
 
-### Execution rule
-Before building new surfaces, make sure we can answer:
-- what operator problem this solves
-- what semantic contract it depends on
-- whether it improves understanding of placement, fragmentation, or scheduler consequences
+    class Server {
+        +scheduler: Scheduler
+        +allocation_repository: AllocationRepository
+        +submit_job(job) Job
+        +cancel_job(job_id) None
+        +get_allocation_details(job_id) Allocation
+    }
 
-If it does not strengthen the core wedge, it is probably not MVP work.
+    class Scheduler {
+        +job_queue: Queue~Job~
+        +placer: Placer
+        +sort_strategy: SortStrategy
+        +enqueue(job) None
+        +dequeue() Job
+        +remove(job_id) bool
+        +attempt_placement(job) Node
+        +release_node(node) None
+    }
 
-See:
-- `docs/mvp-doc.md`
-- `docs/repo-plan.md`
-- `docs/architecture.md`
-- `docs/cluster-snapshot-v0.md`
-- `docs/milestone-1.md`
-- `docs/PROJECT_STATUS.md`
+    class SortStrategy {
+        <<interface>>
+        +sort(queue) Queue~Job~
+    }
+    class PrioritySort {
+        +sort(queue) Queue~Job~
+    }
+    class FifoSort {
+        +sort(queue) Queue~Job~
+    }
+
+    class Placer {
+        +nodes: list~Node~
+        +algorithm: PlaceAlgorithm
+        +place(job) Node
+        +release_resource(node) None
+    }
+
+    class PlaceAlgorithm {
+        <<interface>>
+        +select(candidates, job) Node
+    }
+    class PackAlgorithm {
+        +select(candidates, job) Node
+    }
+    class SpreadAlgorithm {
+        +select(candidates, job) Node
+    }
+
+    class Node {
+        +node_id: int
+        +status: NodeStatus
+        +resources: list~ResourceNode~
+        +available_capacity() list~ResourceNode~
+    }
+
+    class ResourceNode {
+        +resource_type: ResourceType
+        +used_capacity: int
+        +total_capacity: int
+    }
+
+    class AllocationRepository {
+        +save(allocation) Allocation
+        +find_by_job_id(job_id) Allocation
+        +delete(allocation_id) None
+    }
+
+    class Allocation {
+        +alloc_id: int
+        +node: Node
+        +job: Job
+        +begin_time: datetime
+        +duration_minutes: int
+        +is_alive() bool
+    }
+
+    Client "1" --> "*" Job : submits
+    Job "1" *-- "1..*" ResourceRequest : requires
+    Client "1" --> "1" Server : connects to
+    Server "1" --> "1" Scheduler : forwards to
+    Scheduler "1" o-- "1" Placer : uses
+    Scheduler ..> SortStrategy : uses
+    SortStrategy <|.. PrioritySort
+    SortStrategy <|.. FifoSort
+    Placer ..> PlaceAlgorithm : uses
+    PlaceAlgorithm <|.. PackAlgorithm
+    PlaceAlgorithm <|.. SpreadAlgorithm
+    Placer "1" o-- "*" Node : manages
+    Node "1" *-- "1..*" ResourceNode : has
+    Server "1" --> "1" AllocationRepository : uses
+    AllocationRepository "1" --> "*" Allocation : stores
+    Allocation "1" --> "1" Node : on
+    Allocation "1" --> "1" Job : for
+```
+
+## How the pieces fit together
+
+- **`Client`** builds a `Job` itself and calls `submit_job(job)` / `cancel_job(job_id)` / `get_allocation_details(job_id)` — three explicit commands rather than one generic entry point, so dispatch is just normal method resolution, no internal type-switch.
+- **`Server`** is the boundary: it's the only thing a `Client` talks to. It assigns `job_id`/`owner` on receipt (so a client can't forge either), forwards jobs to `Scheduler`, and is the only class that reads/writes `AllocationRepository`.
+- **`Scheduler`** only decides *when* a job gets handled: it orders the queue (`SortStrategy` — `PrioritySort` or `FifoSort`, swappable), and calls `Placer` to attempt placement. It doesn't build or store allocations.
+- **`Placer`** only decides *where*: it filters candidate `Node`s and delegates the actual pick to a `PlaceAlgorithm` (`PackAlgorithm` or `SpreadAlgorithm`, swappable). It returns a `Node`, not an `Allocation`.
+- **`Allocation`** is where the request side (`Job`) and the resource side (`Node`) meet. It's built by `Server` after a successful placement and persisted through `AllocationRepository`, backed by the database described in the issue #27 ER diagram.
+
+## Open design questions
+
+- **REST vs. WebSocket:** `Client.connect()`/`disconnect()` assume a persistent session. Plain REST has no connect step — identity comes from the request itself. Keep them only if live job/allocation status pushes are wanted.
+
+## Layout
+
+- `backend/` — FastAPI service
+- `frontend/` — TypeScript client
