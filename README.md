@@ -57,24 +57,42 @@ classDiagram
     class Placer {
         +nodes: list~Node~
         +algorithm: PlaceAlgorithm
+        +topology: Topology
         +place(job) Node
         +release_resource(node) None
+        #filter_nodes(nodes, job) list~Node~
+        #reserve_resource(node) None
     }
 
     class PlaceAlgorithm {
         <<interface>>
-        +select(candidates, job) Node
+        +select(candidates, job, view) Node
     }
     class PackAlgorithm {
-        +select(candidates, job) Node
+        +select(candidates, job, view) Node
     }
     class SpreadAlgorithm {
-        +select(candidates, job) Node
+        +select(candidates, job, view) Node
+    }
+
+    class Topology {
+        +dim_x: int
+        +dim_y: int
+        +dim_z: int
+        +build_view(nodes) TopologyView
+    }
+
+    class TopologyView {
+        +neighbors(node) list~Node~
+        +distance(a, b) int
     }
 
     class Node {
         +node_id: int
         +status: NodeStatus
+        +x: int
+        +y: int
+        +z: int
         +resources: list~ResourceNode~
         +available_capacity() list~ResourceNode~
     }
@@ -124,6 +142,9 @@ classDiagram
     Placer ..> PlaceAlgorithm : uses
     PlaceAlgorithm <|.. PackAlgorithm
     PlaceAlgorithm <|.. SpreadAlgorithm
+    Placer "1" --> "1" Topology : uses
+    Topology ..> TopologyView : builds
+    PlaceAlgorithm ..> TopologyView : traverses
     Placer "1" o-- "*" Node : manages
     Node "1" *-- "1..*" ResourceNode : has
     Server "1" --> "1" AllocationRepository : uses
@@ -150,6 +171,17 @@ The two classes that make an allocation happen are split by exactly one question
 - **`Placer` answers *where*.** Given a job whose turn has come, which node fits it? That's placement — `PlaceAlgorithm` (`PackAlgorithm` or `SpreadAlgorithm`) decides, also swappable independently.
 
 Neither one needs to know how the other makes its decision — `Scheduler` just calls `Placer.place(job)` once a job reaches the front of the queue.
+
+### Topology
+
+Nodes sit on a 3D torus: each `Node` has a fixed `(x, y, z)` coordinate. `Topology` holds the grid dimensions and, given the current node population, builds a `TopologyView` — a fresh, disposable snapshot with `neighbors(node)` and `distance(a, b)` that a `PlaceAlgorithm` traverses to make its pick.
+
+The reason it's split into `Topology` + `TopologyView` rather than one object: `Pack`/`Spread` need to reason about occupancy — "which free candidate is closest to an already-`OCCUPIED` node" — and occupied nodes never appear in `candidates` (they failed the resource-fit filter). Only `Placer` has the full node list, so `Placer` is the one holding `topology` and calling `topology.build_view(self.nodes)` before every placement attempt; `PlaceAlgorithm.select(candidates, job, view)` then traverses that view without needing any state of its own.
+
+- **`PackAlgorithm`** walks `view` from the candidates toward the nearest `OCCUPIED` node and picks the closest — consolidates usage, keeps free space contiguous.
+- **`SpreadAlgorithm`** does the same walk and picks the farthest — fault-isolates.
+
+Grid dimensions (`dim_x/y/z`) are config, not a database table — there's only one cluster, so a `topology` table would imply rows we don't have.
 
 ## Database schema
 
@@ -201,6 +233,9 @@ erDiagram
     node {
         int node_id PK
         int status_id FK
+        int x
+        int y
+        int z
     }
 
     node_resource {
