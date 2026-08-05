@@ -7,6 +7,7 @@ from .config import settings
 
 
 
+<<<<<<< HEAD
 SQLALCHEMY_DATABASE_URL = (
     f"postgresql+psycopg2://"
     f"{settings.database_username}:"
@@ -15,6 +16,10 @@ SQLALCHEMY_DATABASE_URL = (
     f"{settings.database_port}/"
     f"{settings.database_name}"
 )
+=======
+SQLALCHEMY_DATABASE_URL = f'postgresql://{settings.database_username}:{settings.database_password}@{settings.database_hostname}/{settings.database_name}'
+
+>>>>>>> 1d3c52a (Start coding)
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

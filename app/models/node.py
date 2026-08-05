@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from sqlalchemy import Column, Enum, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship, validates
@@ -39,3 +40,19 @@ class Node(Base):
             for r in self.resources
             if r.resource_type == resource_type and r.resource_status == ResourceStatus.AVAILABLE
         ]
+=======
+from ctypes import Array
+
+from sqlalchemy import Column, Enum, ForeignKey, Integer, String
+
+from app.database import Base
+from app.enums.nodeStatus import NodeStatus
+from app.enums.priority import Priority
+
+class Node(Base):
+ __tablename__ = "nodes"
+id = Column(Integer ,primary_key=True)
+cluster_id = Column(Integer ,ForeignKey("cluster.id"),nullable=False)
+node_status = Column(Enum(NodeStatus) ,nullable=False ,default=NodeStatus.IDLE)
+coordinate = Column(Array())
+>>>>>>> 1d3c52a (Start coding)

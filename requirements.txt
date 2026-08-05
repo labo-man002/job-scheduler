@@ -13,7 +13,10 @@ psycopg2-binary==2.9.12
 pydantic==2.13.4
 pydantic-settings==2.14.2
 pydantic_core==2.46.4
+<<<<<<< HEAD
 pytest==9.1.1
+=======
+>>>>>>> 1d3c52a (Start coding)
 python-dotenv==1.2.2
 SQLAlchemy==2.0.51
 starlette==1.4.0
