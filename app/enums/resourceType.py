@@ -1,9 +1,7 @@
-
-
 from enum import Enum
 
 
-class ResourceType(Enum):
-    CPU	="CPU"
-    GPU	="GPU"
-    MEM = "MEM"	
+class ResourceType(str, Enum):
+    CPU = "CPU"
+    GPU = "GPU"
+    MEM = "MEM"

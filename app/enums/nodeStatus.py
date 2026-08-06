@@ -1,13 +1,8 @@
-
-
-
 from enum import Enum
 
 
-class NodeStatus(Enum):
-
-    IDLE ="IDLE"	
-    ALLOCATED ="ALLOCATED"	
-    MIXED ="MIXED"	
-    DOWN ="MIXED"	
- 
+class NodeStatus(str, Enum):
+    IDLE = "IDLE"
+    ALLOCATED = "ALLOCATED"
+    MIXED = "MIXED"
+    DOWN = "DOWN"

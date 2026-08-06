@@ -1,11 +1,9 @@
-
 from enum import Enum
 
 
-class AllocationStatus(Enum):
- 
+class AllocationStatus(str, Enum):
     PENDING = "PENDING"
     ALLOCATED = "ALLOCATED"
-    ACTIVE = "ACTIVE"	
+    ACTIVE = "ACTIVE"
     RELEASED = "RELEASED"
     FAILED = "FAILED"

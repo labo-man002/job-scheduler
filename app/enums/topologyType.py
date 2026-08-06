@@ -1,9 +1,8 @@
+from enum import Enum
 
 
-from sqlalchemy import Enum
-
-
-class TopologyType(Enum):
-    FAT_TREE = "FAT_TREE"
-    DRAGON_FLY ="DRAGON_FLY"
-    TORUS="TORUS"
+class TopologyType(str, Enum):
+    TORUS = "TORUS"
+    MESH = "MESH"
+    TREE = "TREE"
+    FLAT = "FLAT"

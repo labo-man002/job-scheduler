@@ -1,11 +1,8 @@
-
-
-
 from enum import Enum
 
 
-class Priority(Enum):
-  Low ="Low"
-  High="High"
-  Urgent ="Urgent"
-  Normal = 'Normal'
+class Priority(str, Enum):
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"

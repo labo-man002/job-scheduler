@@ -1,11 +1,6 @@
-
-
-
-
 from enum import Enum
 
 
-class ClientStatus(Enum):
-   
- ONLINE	="ONLINE"
- OFFLINE = "OFLINE"
+class ClientStatus(str, Enum):
+    ONLINE = "ONLINE"
+    OFFLINE = "OFFLINE"
