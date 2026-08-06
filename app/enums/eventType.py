@@ -1,11 +1,10 @@
-
-
-
 from enum import Enum
 
 
-class EventType(Enum):
-    JOB_SUBMITTED = "JOB_SUBMITTED"	
-    JOB_Running	="JOB_Running"
-    JOB_COMPLETED = "JOB_COMPLETED"	
-    JOB_FAILED ="JOB_FAILED"
+class EventType(str, Enum):
+    JOB_SUBMITTED = "JOB_SUBMITTED"
+    JOB_RUNNING = "JOB_RUNNING"
+    JOB_COMPLETED = "JOB_COMPLETED"
+    JOB_CANCELLED = "JOB_CANCELLED"
+    JOB_FAILED = "JOB_FAILED"
+    PLACEMENT_ATTEMPT = "PLACEMENT_ATTEMPT"

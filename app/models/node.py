@@ -47,7 +47,7 @@ from sqlalchemy import Column, Enum, ForeignKey, Integer, String
 
 from app.database import Base
 from app.enums.nodeStatus import NodeStatus
-from app.enums.priority import Priority
+
 
 class Node(Base):
  __tablename__ = "nodes"

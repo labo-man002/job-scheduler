@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 from app.enums.basicEnum import BasicEnum
 
 
@@ -20,3 +21,13 @@ class TopologyType(Enum):
     DRAGON_FLY ="DRAGON_FLY"
     TORUS="TORUS"
 >>>>>>> 1d3c52a (Start coding)
+=======
+from enum import Enum
+
+
+class TopologyType(str, Enum):
+    TORUS = "TORUS"
+    MESH = "MESH"
+    TREE = "TREE"
+    FLAT = "FLAT"
+>>>>>>> 34ff04a (Align database models with ERD design)
