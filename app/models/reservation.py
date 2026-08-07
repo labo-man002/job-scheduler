@@ -10,9 +10,8 @@ class Reservation(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
+    group_id = Column(Integer, ForeignKey("groups.group_id"), nullable=False)
     start_period = Column(DateTime(timezone=True), nullable=False)
     end_period = Column(DateTime(timezone=True), nullable=False)
     reason = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    created_by = Column(String, nullable=False)
