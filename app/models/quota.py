@@ -22,7 +22,7 @@ class Quota(Base):
     institute = relationship("Institute", back_populates="quotas")
 =======
     resource_type_id = Column(Enum(ResourceType, name="resource_type"), nullable=False)
-    institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
+    group_id = Column(Integer, ForeignKey("groups.group_id"), nullable=False)
     limit = Column(Integer, nullable=False)
     period = Column(Integer, nullable=False)
 >>>>>>> 34ff04a (Align database models with ERD design)

@@ -28,7 +28,7 @@ class Reservation(Base):
 >>>>>>> d6abd73 (update models and enums)
 
     id = Column(Integer, primary_key=True)
-    institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
+    group_id = Column(Integer, ForeignKey("groups.group_id"), nullable=False)
     start_period = Column(DateTime(timezone=True), nullable=False)
     end_period = Column(DateTime(timezone=True), nullable=False)
 <<<<<<< HEAD
@@ -43,5 +43,8 @@ class Reservation(Base):
 =======
     reason = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+<<<<<<< HEAD
     created_by = Column(String, nullable=False)
 >>>>>>> d6abd73 (update models and enums)
+=======
+>>>>>>> 709543e (configure alembic)
