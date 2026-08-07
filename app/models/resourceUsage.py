@@ -13,6 +13,7 @@ class ResourceUsage(Base):
 
     id = Column(Integer, primary_key=True)
 <<<<<<< HEAD
+<<<<<<< HEAD
     institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
 <<<<<<< HEAD
     resource_type= Column(Enum(ResourceType, name="resource_type"), nullable=False)
@@ -25,6 +26,10 @@ class ResourceUsage(Base):
     group_id = Column(Integer, ForeignKey("groups.group_id"), nullable=False)
 >>>>>>> 709543e (configure alembic)
     resource_type_id = Column(Enum(ResourceType, name="resource_type"), nullable=False)
+=======
+    institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
+    resource_type= Column(Enum(ResourceType, name="resource_type"), nullable=False)
+>>>>>>> 4cfca51 (modifing and reviewing models and enum)
     consumed_hours = Column(Integer, nullable=False)
     period = Column(Integer, nullable=False)
 >>>>>>> 34ff04a (Align database models with ERD design)

@@ -32,16 +32,21 @@ class Job(Base):
     priority = Column(
 =======
     job_id = Column(Integer, primary_key=True)
-    status_id = Column(
+    status = Column(
         Enum(JobStatus, name="job_status"), nullable=False, default=JobStatus.PENDING
     )
+<<<<<<< HEAD
     priority_id = Column(
 >>>>>>> 34ff04a (Align database models with ERD design)
+=======
+    priority = Column(
+>>>>>>> 4cfca51 (modifing and reviewing models and enum)
         Enum(Priority, name="priority"), nullable=False, default=Priority.NORMAL
     )
     duration = Column(Integer, nullable=False)
     client_id = Column(Integer, ForeignKey("client.client_id"), nullable=False)
     submitted_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+<<<<<<< HEAD
 <<<<<<< HEAD
 
     requirements = relationship("ResourceRequirement")
@@ -57,3 +62,7 @@ class Job(Base):
 >>>>>>> 1d3c52a (Start coding)
 =======
 >>>>>>> 34ff04a (Align database models with ERD design)
+=======
+
+
+>>>>>>> 4cfca51 (modifing and reviewing models and enum)

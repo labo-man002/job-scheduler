@@ -20,12 +20,16 @@ from .resourceRequirement import ResourceRequirement
 from .resourceUsage import ResourceUsage
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 from .institute import Institute
 =======
 >>>>>>> 34ff04a (Align database models with ERD design)
 =======
 from .group import Group
 >>>>>>> 709543e (configure alembic)
+=======
+from .institute import Institute
+>>>>>>> 4cfca51 (modifing and reviewing models and enum)
 
 __all__ = [
     "Allocation",
@@ -44,10 +48,14 @@ __all__ = [
     "ResourceUsage",
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
      "Institute"
 =======
 >>>>>>> 34ff04a (Align database models with ERD design)
 =======
      "Group"
 >>>>>>> 709543e (configure alembic)
+=======
+     "Institute"
+>>>>>>> 4cfca51 (modifing and reviewing models and enum)
 ]

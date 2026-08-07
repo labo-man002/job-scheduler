@@ -27,9 +27,14 @@ class Client(Base):
 =======
     client_id = Column(Integer, primary_key=True)
     owner = Column(String, nullable=False)
+<<<<<<< HEAD
     group_id = Column(Integer, ForeignKey("groups.group_id"), nullable=False)
     client_status_id = Column(
 >>>>>>> 34ff04a (Align database models with ERD design)
+=======
+    institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
+    client_status = Column(
+>>>>>>> 4cfca51 (modifing and reviewing models and enum)
         Enum(ClientStatus, name="client_status"),
         nullable=False,
         default=ClientStatus.OFFLINE,

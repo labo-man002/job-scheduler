@@ -34,10 +34,14 @@ class Allocation(Base):
     begin_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     duration = Column(Integer, nullable=False)
 <<<<<<< HEAD
+<<<<<<< HEAD
     allocation_status = Column(
 =======
     allocation_status_id = Column(
 >>>>>>> 34ff04a (Align database models with ERD design)
+=======
+    allocation_status = Column(
+>>>>>>> 4cfca51 (modifing and reviewing models and enum)
         Enum(AllocationStatus, name="allocation_status"),
         nullable=False,
         default=AllocationStatus.PENDING,
