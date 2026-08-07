@@ -11,7 +11,7 @@ class Allocation(Base):
     job_id = Column(Integer, ForeignKey("job.job_id"), nullable=False)
     begin_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     duration = Column(Integer, nullable=False)
-    allocation_status_id = Column(
+    allocation_status = Column(
         Enum(AllocationStatus, name="allocation_status"),
         nullable=False,
         default=AllocationStatus.PENDING,

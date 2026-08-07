@@ -8,7 +8,7 @@ class ResourceUsage(Base):
     __tablename__ = "resource_usage"
 
     id = Column(Integer, primary_key=True)
-    group_id = Column(Integer, ForeignKey("groups.group_id"), nullable=False)
-    resource_type_id = Column(Enum(ResourceType, name="resource_type"), nullable=False)
+    institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
+    resource_type= Column(Enum(ResourceType, name="resource_type"), nullable=False)
     consumed_hours = Column(Integer, nullable=False)
     period = Column(Integer, nullable=False)

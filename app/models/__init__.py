@@ -11,7 +11,7 @@ from .reservation import Reservation
 from .resourceNode import ResourceNode
 from .resourceRequirement import ResourceRequirement
 from .resourceUsage import ResourceUsage
-from .group import Group
+from .institute import Institute
 
 __all__ = [
     "Allocation",
@@ -28,5 +28,5 @@ __all__ = [
     "ResourceNode",
     "ResourceRequirement",
     "ResourceUsage",
-     "Group"
+     "Institute"
 ]

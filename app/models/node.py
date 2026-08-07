@@ -11,6 +11,6 @@ class Node(Base):
     node_id = Column(Integer, primary_key=True)
     cluster_id = Column(Integer, ForeignKey("cluster.cluster_id"), nullable=False)
     coordinates = Column(ARRAY(Integer), nullable=False)
-    status_id = Column(
+    status= Column(
         Enum(NodeStatus, name="node_status"), nullable=False, default=NodeStatus.IDLE
     )

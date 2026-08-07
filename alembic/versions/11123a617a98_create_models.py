@@ -1,8 +1,8 @@
 """create models
 
-Revision ID: 86ca357a0d3e
+Revision ID: 11123a617a98
 Revises: 
-Create Date: 2026-08-07 15:57:20.523057
+Create Date: 2026-08-07 18:51:46.495700
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '86ca357a0d3e'
+revision: str = '11123a617a98'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,65 +24,65 @@ def upgrade() -> None:
     op.create_table('cluster',
     sa.Column('cluster_id', sa.Integer(), nullable=False),
     sa.Column('cluster_name', sa.String(), nullable=False),
-    sa.Column('topology_type_id', sa.Enum('TORUS', 'MESH', 'TREE', 'FLAT', name='topology_type'), nullable=False),
+    sa.Column('topology_type', sa.Enum('TORUS_3D', 'TORUS_2D', 'MESH_2D', 'FAT_TREE', name='topology_type'), nullable=False),
     sa.Column('dimension', postgresql.ARRAY(sa.Integer()), nullable=False),
     sa.Column('wrap', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('cluster_id')
     )
-    op.create_table('groups',
-    sa.Column('group_id', sa.Integer(), nullable=False),
-    sa.Column('group_name', sa.String(), nullable=False),
-    sa.PrimaryKeyConstraint('group_id')
+    op.create_table('institute',
+    sa.Column('institute_id', sa.Integer(), nullable=False),
+    sa.Column('institute_name', sa.String(), nullable=False),
+    sa.PrimaryKeyConstraint('institute_id')
     )
     op.create_table('client',
     sa.Column('client_id', sa.Integer(), nullable=False),
     sa.Column('owner', sa.String(), nullable=False),
-    sa.Column('group_id', sa.Integer(), nullable=False),
-    sa.Column('client_status_id', sa.Enum('ONLINE', 'OFFLINE', name='client_status'), nullable=False),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.group_id'], ),
+    sa.Column('institute_id', sa.Integer(), nullable=False),
+    sa.Column('client_status', sa.Enum('ONLINE', 'OFFLINE', name='client_status'), nullable=False),
+    sa.ForeignKeyConstraint(['institute_id'], ['institute.institute_id'], ),
     sa.PrimaryKeyConstraint('client_id')
     )
     op.create_table('node',
     sa.Column('node_id', sa.Integer(), nullable=False),
     sa.Column('cluster_id', sa.Integer(), nullable=False),
     sa.Column('coordinates', postgresql.ARRAY(sa.Integer()), nullable=False),
-    sa.Column('status_id', sa.Enum('IDLE', 'ALLOCATED', 'MIXED', 'DOWN', name='node_status'), nullable=False),
+    sa.Column('status', sa.Enum('IDLE', 'ALLOCATED', 'MIXED', 'DOWN', name='node_status'), nullable=False),
     sa.ForeignKeyConstraint(['cluster_id'], ['cluster.cluster_id'], ),
     sa.PrimaryKeyConstraint('node_id')
     )
     op.create_table('quota',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('resource_type_id', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
-    sa.Column('group_id', sa.Integer(), nullable=False),
+    sa.Column('resource_type', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
+    sa.Column('institute_id', sa.Integer(), nullable=False),
     sa.Column('limit', sa.Integer(), nullable=False),
-    sa.Column('period', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.group_id'], ),
+    sa.Column('period', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['institute_id'], ['institute.institute_id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('reservation',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('group_id', sa.Integer(), nullable=False),
+    sa.Column('institute_id', sa.Integer(), nullable=False),
     sa.Column('start_period', sa.DateTime(timezone=True), nullable=False),
     sa.Column('end_period', sa.DateTime(timezone=True), nullable=False),
     sa.Column('reason', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint('end_period > start_period', name='ck_reservation_valid_period'),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.group_id'], ),
+    sa.ForeignKeyConstraint(['institute_id'], ['institute.institute_id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('resource_usage',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('group_id', sa.Integer(), nullable=False),
-    sa.Column('resource_type_id', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
+    sa.Column('institute_id', sa.Integer(), nullable=False),
+    sa.Column('resource_type', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
     sa.Column('consumed_hours', sa.Integer(), nullable=False),
     sa.Column('period', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.group_id'], ),
+    sa.ForeignKeyConstraint(['institute_id'], ['institute.institute_id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('job',
     sa.Column('job_id', sa.Integer(), nullable=False),
-    sa.Column('status_id', sa.Enum('PENDING', 'QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED', name='job_status'), nullable=False),
-    sa.Column('priority_id', sa.Enum('LOW', 'NORMAL', 'HIGH', 'URGENT', name='priority'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED', name='job_status'), nullable=False),
+    sa.Column('priority', sa.Enum('LOW', 'NORMAL', 'HIGH', 'URGENT', name='priority'), nullable=False),
     sa.Column('duration', sa.Integer(), nullable=False),
     sa.Column('client_id', sa.Integer(), nullable=False),
     sa.Column('submitted_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -100,9 +100,9 @@ def upgrade() -> None:
     op.create_table('node_resource',
     sa.Column('resource_node_id', sa.Integer(), nullable=False),
     sa.Column('node_id', sa.Integer(), nullable=False),
-    sa.Column('resource_type_id', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
+    sa.Column('resource_type', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
     sa.Column('resource_type_index', sa.Integer(), nullable=False),
-    sa.Column('resource_status_id', sa.Enum('AVAILABLE', 'ALLOCATED', 'UNAVAILABLE', 'FAILED', name='resource_status'), nullable=False),
+    sa.Column('resource_status', sa.Enum('AVAILABLE', 'ALLOCATED', 'UNAVAILABLE', 'FAILED', name='resource_status'), nullable=False),
     sa.ForeignKeyConstraint(['node_id'], ['node.node_id'], ),
     sa.PrimaryKeyConstraint('resource_node_id')
     )
@@ -111,13 +111,13 @@ def upgrade() -> None:
     sa.Column('job_id', sa.Integer(), nullable=False),
     sa.Column('begin_time', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('duration', sa.Integer(), nullable=False),
-    sa.Column('allocation_status_id', sa.Enum('PENDING', 'ALLOCATED', 'ACTIVE', 'RELEASED', 'FAILED', name='allocation_status'), nullable=False),
+    sa.Column('allocation_status', sa.Enum('PENDING', 'ALLOCATED', 'ACTIVE', 'RELEASED', 'FAILED', name='allocation_status'), nullable=False),
     sa.ForeignKeyConstraint(['job_id'], ['job.job_id'], ),
     sa.PrimaryKeyConstraint('allocation_id')
     )
     op.create_table('job_event',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('event_type_id', sa.Enum('JOB_SUBMITTED', 'JOB_RUNNING', 'JOB_COMPLETED', 'JOB_CANCELLED', 'JOB_FAILED', 'PLACEMENT_ATTEMPT', name='event_type'), nullable=False),
+    sa.Column('event_type', sa.Enum('PENDING', 'QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED', name='event_type'), nullable=False),
     sa.Column('time', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('comment', sa.String(), nullable=False),
     sa.Column('job_id', sa.Integer(), nullable=False),
@@ -127,7 +127,7 @@ def upgrade() -> None:
     op.create_table('resource_requirement',
     sa.Column('req_res_id', sa.Integer(), nullable=False),
     sa.Column('job_id', sa.Integer(), nullable=False),
-    sa.Column('resource_type_id', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
+    sa.Column('resource_type', sa.Enum('CPU', 'GPU', 'MEM', name='resource_type'), nullable=False),
     sa.Column('amount', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['job_id'], ['job.job_id'], ),
     sa.PrimaryKeyConstraint('req_res_id')
@@ -158,6 +158,6 @@ def downgrade() -> None:
     op.drop_table('quota')
     op.drop_table('node')
     op.drop_table('client')
-    op.drop_table('groups')
+    op.drop_table('institute')
     op.drop_table('cluster')
     # ### end Alembic commands ###

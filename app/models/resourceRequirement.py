@@ -9,5 +9,5 @@ class ResourceRequirement(Base):
 
     req_res_id = Column(Integer, primary_key=True)
     job_id = Column(Integer, ForeignKey("job.job_id"), nullable=False)
-    resource_type_id = Column(Enum(ResourceType, name="resource_type"), nullable=False)
+    resource_type= Column(Enum(ResourceType, name="resource_type"), nullable=False)
     amount = Column(Integer, nullable=False)

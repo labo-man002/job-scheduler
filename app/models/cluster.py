@@ -10,6 +10,6 @@ class Cluster(Base):
 
     cluster_id = Column(Integer, primary_key=True)
     cluster_name = Column(String, nullable=False)
-    topology_type_id = Column(Enum(TopologyType, name="topology_type"), nullable=False)
+    topology_type= Column(Enum(TopologyType, name="topology_type"), nullable=False)
     dimension = Column(ARRAY(Integer), nullable=False)
     wrap = Column(Boolean, nullable=False, default=False)
