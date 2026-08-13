@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Enum, ForeignKey, Integer
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.enums.resourceStatus import ResourceStatus
@@ -17,3 +18,6 @@ class ResourceNode(Base):
         nullable=False,
         default=ResourceStatus.AVAILABLE,
     )
+
+    node = relationship("Node", back_populates="resources")
+    allocation_nodes = relationship("AllocationNode", back_populates="resource_node")

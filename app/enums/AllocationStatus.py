@@ -1,7 +1,7 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class AllocationStatus(str, Enum):
+class AllocationStatus(BasicEnum):
     PENDING = "PENDING"
     ALLOCATED = "ALLOCATED"
     ACTIVE = "ACTIVE"

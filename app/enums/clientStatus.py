@@ -1,6 +1,6 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class ClientStatus(str, Enum):
+class ClientStatus(BasicEnum):
     ONLINE = "ONLINE"
     OFFLINE = "OFFLINE"

@@ -1,7 +1,7 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class JobStatus(str, Enum):
+class JobStatus(BasicEnum):
     PENDING = "PENDING"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Enum, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.enums.clientStatus import ClientStatus
@@ -15,3 +16,6 @@ class Client(Base):
         nullable=False,
         default=ClientStatus.OFFLINE,
     )
+
+    institute = relationship("Institute", back_populates="clients")
+    jobs = relationship("Job", back_populates="client")

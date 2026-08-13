@@ -1,7 +1,7 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class Priority(str, Enum):
+class Priority(BasicEnum):
     LOW = "LOW"
     NORMAL = "NORMAL"
     HIGH = "HIGH"

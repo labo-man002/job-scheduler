@@ -1,7 +1,7 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class NodeStatus(str, Enum):
+class NodeStatus(BasicEnum):
     IDLE = "IDLE"
     ALLOCATED = "ALLOCATED"
     MIXED = "MIXED"

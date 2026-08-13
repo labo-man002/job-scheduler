@@ -1,7 +1,7 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class ResourceStatus(str, Enum):
+class ResourceStatus(BasicEnum):
     AVAILABLE = "AVAILABLE"
     ALLOCATED = "ALLOCATED"
     UNAVAILABLE = "UNAVAILABLE"

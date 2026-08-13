@@ -1,4 +1,5 @@
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, func
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.enums.jobStatus import JobStatus
@@ -18,5 +19,9 @@ class Job(Base):
     duration = Column(Integer, nullable=False)
     client_id = Column(Integer, ForeignKey("client.client_id"), nullable=False)
     submitted_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    requirements = relationship("ResourceRequirement")
+    client = relationship("Client", back_populates="jobs")
+    events = relationship("JobEvent", back_populates="job")
 
 

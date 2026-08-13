@@ -1,4 +1,5 @@
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.enums.resourceType import ResourceType
@@ -12,3 +13,5 @@ class Quota(Base):
     institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
     limit = Column(Integer, nullable=False)
     period = Column(DateTime, nullable=False)
+
+    institute = relationship("Institute", back_populates="quotas")

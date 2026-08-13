@@ -1,7 +1,8 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class TopologyType(str, Enum):
+class TopologyType(BasicEnum):
+    RING = "RING"
     TORUS_3D = "TORUS_3D"
     TORUS_2D = "TORUS_2D"
     MESH_2D = "MESH_2D"

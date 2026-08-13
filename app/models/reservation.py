@@ -1,4 +1,5 @@
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 
@@ -15,3 +16,6 @@ class Reservation(Base):
     end_period = Column(DateTime(timezone=True), nullable=False)
     reason = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    institute = relationship("Institute", back_populates="reservations")
+    node_reservations = relationship("NodeReservation", back_populates="reservation")

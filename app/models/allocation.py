@@ -1,4 +1,5 @@
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, func
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.enums.AllocationStatus import AllocationStatus
@@ -16,3 +17,6 @@ class Allocation(Base):
         nullable=False,
         default=AllocationStatus.PENDING,
     )
+
+    job = relationship("Job")
+    allocation_nodes = relationship("AllocationNode", back_populates="allocation")

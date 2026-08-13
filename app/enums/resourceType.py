@@ -1,7 +1,7 @@
-from enum import Enum
+from app.enums.basicEnum import BasicEnum
 
 
-class ResourceType(str, Enum):
+class ResourceType(BasicEnum):
     CPU = "CPU"
     GPU = "GPU"
     MEM = "MEM"
