@@ -31,12 +31,7 @@ class Scheduler:
         self._sequence = 0
 
     def set_sort_strategy(self, sort_strategy):
-        """Change the strategy and immediately reorder the current queue.
-
-        A full rebuild is required here (unlike enqueue()) because the ranking
-        criterion itself changed — every already-queued job's priority under the
-        new strategy needs recomputing, not just the newest one.
-        """
+        """Change the strategy and rebuild the queue (unlike enqueue, every job's priority may have changed)."""
         self.sort_strategy = sort_strategy
         self._rebuild_queue()
 

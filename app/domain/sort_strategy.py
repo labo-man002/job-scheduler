@@ -13,9 +13,7 @@ class SortStrategy(ABC):
         raise NotImplementedError
 
     def key(self, job):
-        """Comparable priority for a single job, used to insert directly into a
-        heap without re-sorting everything already queued. Default: no priority
-        distinction, so ordering falls entirely to the caller's tiebreak."""
+        """Comparable priority for one job, for O(log N) enqueue. Default: no distinction."""
         return 0
 
 

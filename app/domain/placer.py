@@ -32,15 +32,35 @@ class Placer:
             )
         ]
 
-    def place(self, job: Job) -> Node | None:
-        candidates = self.filter_nodes(self.nodes, job)
-        if not candidates:
+    def place(self, job: Job) -> list[ResourceNode] | None:
+        view = self.topology.build_view(self.nodes)
+
+        single_node_candidates = self.filter_nodes(self.nodes, job)
+        if single_node_candidates:
+            chosen = self.algorithm.select(single_node_candidates, job, view)
+            needed = {req.resource_type: req.amount for req in job.requirements}
+            return self._reserve_from(chosen, needed)
+
+        if not self._cluster_has_enough(job):
             return None
 
-        view = self.topology.build_view(self.nodes)
-        chosen = self.algorithm.select(candidates, job, view)
-        self._reserve_resource(chosen, job)
-        return chosen
+        remaining = {req.resource_type: req.amount for req in job.requirements}
+        reserved = []
+        for node in self.algorithm.rank(self.nodes, job, view):
+            if all(amount <= 0 for amount in remaining.values()):
+                break
+            taken = self._reserve_from(node, remaining)
+            reserved.extend(taken)
+            for resource in taken:
+                remaining[resource.resource_type] -= 1
+        return reserved
+
+    def _cluster_has_enough(self, job: Job) -> bool:
+        for req in job.requirements:
+            total_free = sum(len(node.free_resources(req.resource_type)) for node in self.nodes)
+            if total_free < req.amount:
+                return False
+        return True
 
     def release_resource(self, resource_nodes: list[ResourceNode]) -> None:
         affected_nodes = {resource.node for resource in resource_nodes}
@@ -49,11 +69,17 @@ class Placer:
         for node in affected_nodes:
             self._recompute_status(node)
 
-    def _reserve_resource(self, node: Node, job: Job) -> None:
-        for req in job.requirements:
-            for resource in node.free_resources(req.resource_type)[: req.amount]:
+    def _reserve_from(self, node: Node, needed: dict) -> list[ResourceNode]:
+        reserved = []
+        for resource_type, amount in needed.items():
+            if amount <= 0:
+                continue
+            for resource in node.free_resources(resource_type)[:amount]:
                 resource.resource_status = ResourceStatus.ALLOCATED
-        self._recompute_status(node)
+                reserved.append(resource)
+        if reserved:
+            self._recompute_status(node)
+        return reserved
 
     def _recompute_status(self, node: Node) -> None:
         if node.status == NodeStatus.DOWN:
