@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class OurBaseModel(BaseModel):
     class Config:
         from_attributes = True
