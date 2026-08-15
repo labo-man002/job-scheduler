@@ -39,18 +39,17 @@ class Scheduler:
         if any(queued.job_id == job.job_id for queued in self._jobs):
             raise ValueError(f"Job {job.job_id} is already queued")
         self._jobs.append(job)
-   
+        self._rebuild_queue()
 
     def dequeue(self):
         """Remove and return the next job, or ``None`` when the queue is empty."""
         try:
-            job = self.job_queue.get()
+            _, job = self.job_queue.get_nowait()
         except Empty:
             return None
         self._jobs.remove(job)
         return job
 
-    
 
     def attempt_placement(self, job):
         """Ask the configured placer to find resources for a selected job."""
