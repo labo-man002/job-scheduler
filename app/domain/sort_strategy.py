@@ -12,6 +12,12 @@ class SortStrategy(ABC):
     def sort(self, queue):
         raise NotImplementedError
 
+    def key(self, job):
+        """Comparable priority for a single job, used to insert directly into a
+        heap without re-sorting everything already queued. Default: no priority
+        distinction, so ordering falls entirely to the caller's tiebreak."""
+        return 0
+
 
 class PrioritySort(SortStrategy):
     """Urgent jobs first, with FIFO ordering for jobs at the same priority."""
@@ -26,6 +32,12 @@ class PrioritySort(SortStrategy):
     def sort(self, queue):
         try:
             return sorted(queue, key=lambda job: self._rank[job.priority])
+        except KeyError as error:
+            raise ValueError(f"Unsupported job priority: {error.args[0]!r}") from error
+
+    def key(self, job):
+        try:
+            return self._rank[job.priority]
         except KeyError as error:
             raise ValueError(f"Unsupported job priority: {error.args[0]!r}") from error
 

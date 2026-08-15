@@ -28,9 +28,15 @@ class Scheduler:
         self.sort_strategy = sort_strategy or FifoSort()
         self.job_queue = PriorityQueue()
         self._jobs = []
+        self._sequence = 0
 
     def set_sort_strategy(self, sort_strategy):
-        """Change the strategy and immediately reorder the current queue."""
+        """Change the strategy and immediately reorder the current queue.
+
+        A full rebuild is required here (unlike enqueue()) because the ranking
+        criterion itself changed — every already-queued job's priority under the
+        new strategy needs recomputing, not just the newest one.
+        """
         self.sort_strategy = sort_strategy
         self._rebuild_queue()
 
@@ -39,7 +45,8 @@ class Scheduler:
         if any(queued.job_id == job.job_id for queued in self._jobs):
             raise ValueError(f"Job {job.job_id} is already queued")
         self._jobs.append(job)
-        self._rebuild_queue()
+        self._sequence += 1
+        self.job_queue.put(((self.sort_strategy.key(job), self._sequence), job))
 
     def dequeue(self):
         """Remove and return the next job, or ``None`` when the queue is empty."""
@@ -61,5 +68,6 @@ class Scheduler:
 
     def _rebuild_queue(self):
         self.job_queue = PriorityQueue()
-        for priority, job in enumerate(self.sort_strategy.sort(self._jobs)):
-            self.job_queue.put((priority, job))
+        for job in self._jobs:
+            self._sequence += 1
+            self.job_queue.put(((self.sort_strategy.key(job), self._sequence), job))
