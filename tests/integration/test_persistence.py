@@ -5,7 +5,7 @@ so nothing persists.
 """
 
 import pytest
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app import models
 from app.database import SessionLocal
@@ -84,6 +84,17 @@ def test_node_resources_and_free_resources(db, seeded):
     node = db.query(models.Node).filter_by(node_id=seeded["node_id"]).one()
     assert len(node.resources) == 4
     assert len(node.free_resources(ResourceType.CPU)) == 4
+
+
+def test_duplicate_resource_type_index_rejected(db, seeded):
+    """uq_node_resource_type_index: two units of the same resource_type on the
+    same node can't claim the same index -- it's meant to disambiguate them."""
+    db.add(models.ResourceNode(
+        node_id=seeded["node_id"], resource_type=ResourceType.CPU, resource_type_index=0,  # already used by `seeded`
+        resource_status=ResourceStatus.AVAILABLE,
+    ))
+    with pytest.raises(IntegrityError):
+        db.flush()
 
 
 def test_job_to_requirements(db, seeded):

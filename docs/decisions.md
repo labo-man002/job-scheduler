@@ -36,7 +36,6 @@ This is the "document assumptions and modeling decisions" item from issue [#27](
 
 ## Open items (not yet resolved as of 2026-08-01)
 
-- **`resource_type_index` on `node_resource`** — the exact meaning (e.g. "the 3rd GPU on this node") is implied by the July 24 comment thread but not written down as a formal definition anywhere.
 - **Multi-cluster placement — fully resolved.** One `Placer`/`Scheduler` per `Cluster` (2026-08-11), and routing a job to a specific cluster is resolved above (best-fit by capacity, `Server._best_fit_cluster`).
 - **`dimension`/`coordinates` validation — resolved 2026-08-11.** `Node._check_coordinates` (`app/models/node.py`) validates length and bounds against `self.cluster.dimension` whenever `coordinates` is set.
 - **`FAT_TREE` topology — deferred.** `TopologyView.neighbors()`/`.distance()` raise `NotImplementedError` for it; it isn't a coordinate grid (distance would be common-ancestor depth in a switch hierarchy), and `coordinates`/`dimension` have no agreed meaning for it yet.
