@@ -8,6 +8,10 @@ venv/
 node_modules/
 dist/
 
+# Generated from the backend's OpenAPI schema -- run `pnpm generate:api` to regenerate
+frontend/openapi.json
+frontend/src/api/schema.d.ts
+
 # Env / local
 .env
 .DS_Store
