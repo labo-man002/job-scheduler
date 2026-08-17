@@ -41,7 +41,7 @@ class Placer:
             needed = {req.resource_type: req.amount for req in job.requirements}
             return self._reserve_from(chosen, needed)
 
-        if not self._cluster_has_enough(job):
+        if not self.has_enough_capacity(job):
             return None
 
         remaining = {req.resource_type: req.amount for req in job.requirements}
@@ -55,9 +55,13 @@ class Placer:
                 remaining[resource.resource_type] -= 1
         return reserved
 
-    def _cluster_has_enough(self, job: Job) -> bool:
+    def has_enough_capacity(self, job: Job, nodes: list[Node] | None = None) -> bool:
+        """Read-only capacity check (no reservation side effects) -- lets a
+        caller ask "would this job ever fit here" against a different node
+        set than self.nodes without risking an actual placement."""
+        candidates = self.nodes if nodes is None else nodes
         for req in job.requirements:
-            total_free = sum(len(node.free_resources(req.resource_type)) for node in self.nodes)
+            total_free = sum(len(node.free_resources(req.resource_type)) for node in candidates)
             if total_free < req.amount:
                 return False
         return True

@@ -2,9 +2,52 @@ from fastapi import APIRouter, HTTPException
 
 from app import schemas
 from app.dependencies import DbDep
-from app.domain.server import ClientNotFoundError, JobNotFoundError, JobNotRunningError, JobTooLargeError, Server
+from app.domain.exceptions import (
+    ClientNotFoundError,
+    JobNotFoundError,
+    JobNotRunningError,
+    JobTooLargeError,
+    QuotaExceededError,
+)
+from app.domain.server import Server
+from app.enums import JobStatus
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+
+@router.get("", response_model=list[schemas.JobListItemOut])
+def list_jobs(db: DbDep, client_id: int | None = None, status: JobStatus | None = None):
+    return Server(db).list_jobs(client_id=client_id, status=status)
+
+
+@router.get("/{job_id}", response_model=schemas.JobDetailOut)
+def get_job(job_id: int, db: DbDep):
+    try:
+        job = Server(db).get_job(job_id)
+    except JobNotFoundError as error:
+        raise HTTPException(status_code=404, detail=f"Job {error} not found") from error
+
+    return schemas.JobDetailOut(
+        job_id=job.job_id,
+        client_id=job.client_id,
+        status=job.status,
+        priority=job.priority,
+        duration=job.duration,
+        submitted_at=job.submitted_at,
+        requirements=[
+            schemas.ResourceRequirementOut(resource_type=r.resource_type, amount=r.amount) for r in job.requirements
+        ],
+    )
+
+
+@router.get("/{job_id}/events", response_model=list[schemas.JobEventOut])
+def get_job_events(job_id: int, db: DbDep):
+    try:
+        events = Server(db).get_job_events(job_id)
+    except JobNotFoundError as error:
+        raise HTTPException(status_code=404, detail=f"Job {error} not found") from error
+
+    return [schemas.JobEventOut(event_type=e.event_type, time=e.time, comment=e.comment) for e in events]
 
 
 @router.post("", response_model=schemas.JobOut, status_code=201)
@@ -24,6 +67,9 @@ def submit_job(payload: schemas.JobCreate, db: DbDep):
     except JobTooLargeError as error:
         db.rollback()
         raise HTTPException(status_code=422, detail=f"No cluster has enough capacity for {error} units") from error
+    except QuotaExceededError as error:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=str(error)) from error
 
     db.refresh(job)
     return schemas.JobOut(job_id=job.job_id, status=job.status, detail="Job submitted", status_code=201)

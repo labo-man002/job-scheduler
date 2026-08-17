@@ -39,3 +39,16 @@ class Node(Base):
             for r in self.resources
             if r.resource_type == resource_type and r.resource_status == ResourceStatus.AVAILABLE
         ]
+
+    def resource_summary(self) -> list[dict]:
+        """One row per resource_type present on this node, with total/free counts -- the
+        per-node breakdown a topology/resource-availability view needs."""
+        present = {r.resource_type for r in self.resources}
+        return [
+            {
+                "resource_type": resource_type,
+                "total": sum(1 for r in self.resources if r.resource_type == resource_type),
+                "free": len(self.free_resources(resource_type)),
+            }
+            for resource_type in present
+        ]
