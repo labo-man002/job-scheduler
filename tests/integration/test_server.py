@@ -20,7 +20,16 @@ from app.domain.exceptions import (
     ReservationNotFoundError,
 )
 from app.domain.server import NodeSpec, ResourceCount, Server
-from app.enums import AllocationStatus, ClientStatus, JobStatus, Priority, ResourceStatus, ResourceType, TopologyType
+from app.enums import (
+    AllocationStatus,
+    ClientStatus,
+    JobStatus,
+    NodeStatus,
+    Priority,
+    ResourceStatus,
+    ResourceType,
+    TopologyType,
+)
 
 from .db_factories import create_cluster_with_nodes, create_institute_and_client
 
@@ -63,6 +72,19 @@ def test_register_client_creates_client_offline_by_default(db):
     assert client.owner == "bob"
     assert client.institute_id == institute.institute_id
     assert client.client_status == ClientStatus.OFFLINE
+
+
+def test_submit_job_marks_client_online(db, seeded_cluster):
+    server = Server(db)
+    client = server.register_client(owner="fresh", institute_id=seeded_cluster["institute_id"])
+    db.flush()
+    assert client.client_status == ClientStatus.OFFLINE
+
+    server.submit_job(
+        client_id=client.client_id, requirements=[(ResourceType.CPU, 2)], priority=Priority.NORMAL, duration=10
+    )
+
+    assert client.client_status == ClientStatus.ONLINE
 
 
 def test_register_client_rejects_unknown_institute(db):
@@ -122,6 +144,17 @@ def test_submit_job_rejects_unknown_client(db, seeded_cluster):
     server = Server(db)
     with pytest.raises(ClientNotFoundError):
         server.submit_job(client_id=999999, requirements=[(ResourceType.CPU, 1)], priority=Priority.NORMAL, duration=10)
+
+
+def test_submit_job_rejects_duplicate_resource_type(db, seeded_cluster):
+    server = Server(db)
+    with pytest.raises(ValueError):
+        server.submit_job(
+            client_id=seeded_cluster["client_id"],
+            requirements=[(ResourceType.CPU, 2), (ResourceType.CPU, 3)],
+            priority=Priority.NORMAL,
+            duration=10,
+        )
 
 
 def test_cancel_queued_job_marks_cancelled_without_touching_resources(db, seeded_cluster):
@@ -825,3 +858,57 @@ def test_cancelled_reservation_no_longer_blocks_other_institutes(db):
         client_id=other_client.client_id, requirements=[(ResourceType.CPU, 2)], priority=Priority.NORMAL, duration=10
     )
     assert job.status == JobStatus.RUNNING
+
+
+def test_set_node_down_rejects_unknown_node(db):
+    server = Server(db)
+    with pytest.raises(NodeNotFoundError):
+        server.set_node_down(999999)
+
+
+def test_set_node_down_marks_available_resources_unavailable(db, seeded_cluster):
+    server = Server(db)
+    node = seeded_cluster["nodes"][0]
+
+    server.set_node_down(node.node_id)
+    db.expire_all()
+
+    refreshed = db.query(models.Node).filter_by(node_id=node.node_id).one()
+    assert refreshed.status == NodeStatus.DOWN
+    assert all(r.resource_status == ResourceStatus.UNAVAILABLE for r in refreshed.resources)
+
+
+def test_set_node_down_waits_for_running_job_then_marks_it_unavailable(db, seeded_cluster):
+    server = Server(db)
+    job = server.submit_job(
+        client_id=seeded_cluster["client_id"], requirements=[(ResourceType.CPU, 2)], priority=Priority.NORMAL, duration=10
+    )
+    db.flush()
+    allocation = server.get_allocation_details(job.job_id)
+    resource_ids = [an.resource_node_id for an in allocation.allocation_nodes]
+    used_node_id = db.query(models.ResourceNode).filter_by(resource_node_id=resource_ids[0]).one().node_id
+
+    server.set_node_down(used_node_id)
+    db.expire_all()
+
+    # Still running -- decommissioning waits, doesn't evict.
+    allocated = db.query(models.ResourceNode).filter(models.ResourceNode.resource_node_id.in_(resource_ids)).all()
+    assert all(r.resource_status == ResourceStatus.ALLOCATED for r in allocated)
+    assert job.status == JobStatus.RUNNING
+
+    server.complete_job(job.job_id)
+    db.expire_all()
+
+    released = db.query(models.ResourceNode).filter(models.ResourceNode.resource_node_id.in_(resource_ids)).all()
+    assert all(r.resource_status == ResourceStatus.UNAVAILABLE for r in released)  # not AVAILABLE
+
+
+def test_placement_skips_a_down_node(db, seeded_cluster):
+    server = Server(db)
+    server.set_node_down(seeded_cluster["nodes"][0].node_id)  # -2 CPUs from the 8-capacity cluster
+
+    job = server.submit_job(
+        client_id=seeded_cluster["client_id"], requirements=[(ResourceType.CPU, 8)], priority=Priority.NORMAL, duration=10
+    )
+    # Fits the cluster's total (still 8) but not what's actually free (6) with a node down.
+    assert job.status == JobStatus.QUEUED

@@ -56,8 +56,7 @@ class Placer:
         return reserved
 
     def has_enough_capacity(self, job: Job, nodes: list[Node] | None = None) -> bool:
-        """Read-only capacity check (no reservation side effects) -- lets a
-        caller ask "would this job ever fit here" against a different node
+        """Read-only capacity check -- lcaller ask "would this job ever fit here" against a different node
         set than self.nodes without risking an actual placement."""
         candidates = self.nodes if nodes is None else nodes
         for req in job.requirements:
@@ -67,9 +66,15 @@ class Placer:
         return True
 
     def release_resource(self, resource_nodes: list[ResourceNode]) -> None:
+        """A resource on a node marked DOWN releases to UNAVAILABLE, not
+        AVAILABLE -- decommissioning waits for a running job to finish
+        rather than evicting it (see docs/decisions.md), but once it does
+        finish, the resource shouldn't quietly become placeable again."""
         affected_nodes = {resource.node for resource in resource_nodes}
         for resource in resource_nodes:
-            resource.resource_status = ResourceStatus.AVAILABLE
+            resource.resource_status = (
+                ResourceStatus.UNAVAILABLE if resource.node.status == NodeStatus.DOWN else ResourceStatus.AVAILABLE
+            )
         for node in affected_nodes:
             self._recompute_status(node)
 

@@ -46,7 +46,7 @@ from app.domain.placer import Placer
 from app.domain.scheduler import PendingJob, Scheduler
 from app.domain.sort_strategy import PrioritySort
 from app.domain.topology import Topology
-from app.enums import AllocationStatus, JobStatus, ResourceType, TopologyType
+from app.enums import AllocationStatus, ClientStatus, JobStatus, NodeStatus, ResourceStatus, ResourceType, TopologyType
 
 logger = logging.getLogger(__name__)
 
@@ -138,10 +138,7 @@ class Server:
 
     def create_quota(self, institute_id, resource_type, limit, period=None):
         """period: which calendar month this limit applies to (defaults to the
-        current month). Setting it again for a month that already has a row
-        updates that row's limit in place -- locking the institute row first
-        serializes concurrent calls for it, so two racing upserts for the same
-        institute/resource_type/month can't both see "no row" and both insert."""
+        current month)."""
         institute = self.db.query(models.Institute).filter_by(institute_id=institute_id).with_for_update().one_or_none()
         if institute is None:
             raise InstituteNotFoundError(institute_id)
@@ -237,6 +234,22 @@ class Server:
             raise ClusterNotFoundError(cluster_id)
         return cluster
 
+    def set_node_down(self, node_id):
+        """Decommission a node without evicting whatever's currently running
+        on it"""
+        node = self.db.query(models.Node).filter_by(node_id=node_id).with_for_update().one_or_none()
+        if node is None:
+            raise NodeNotFoundError(node_id)
+
+        resources = self.db.query(models.ResourceNode).filter_by(node_id=node_id).with_for_update().all()
+        node.status = NodeStatus.DOWN
+        for resource in resources:
+            if resource.resource_status == ResourceStatus.AVAILABLE:
+                resource.resource_status = ResourceStatus.UNAVAILABLE
+        self.db.flush()
+        logger.info("node %s marked DOWN", node_id)
+        return node
+
     def list_institutes(self):
         return self.db.query(models.Institute).all()
 
@@ -276,9 +289,15 @@ class Server:
     def submit_job(self, client_id, requirements, priority, duration):
         """requirements: list of (ResourceType, amount). `duration` is the
         client's estimate, not a commitment."""
+        resource_types = [resource_type for resource_type, _ in requirements]
+        if len(resource_types) != len(set(resource_types)):
+            # Placer.place() keys its "needed" dict by resource_type (app/domain/placer.py) --
+            raise ValueError("requirements can't repeat the same resource_type -- combine into a single amount instead")
+
         client = self.db.query(models.Client).filter_by(client_id=client_id).one_or_none()
         if client is None:
             raise ClientNotFoundError(client_id)
+        client.client_status = ClientStatus.ONLINE  # last-activity marker, not true liveness -- see docs/decisions.md
         self._check_quota(client.institute_id, requirements)
 
         job_size = sum(amount for _, amount in requirements)

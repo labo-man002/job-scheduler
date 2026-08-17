@@ -70,6 +70,9 @@ def submit_job(payload: schemas.JobCreate, db: DbDep):
     except QuotaExceededError as error:
         db.rollback()
         raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:  # e.g. duplicate resource_type across requirements
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     db.refresh(job)
     return schemas.JobOut(job_id=job.job_id, status=job.status, detail="Job submitted", status_code=201)

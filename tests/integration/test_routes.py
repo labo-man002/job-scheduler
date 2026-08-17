@@ -104,6 +104,16 @@ def test_submit_job_unknown_client_returns_404(api_client, db):
     assert resp.status_code == 404
 
 
+def test_submit_job_duplicate_resource_type_returns_422(api_client, db, seeded_cluster):
+    resp = api_client.post("/jobs", json={
+        "client_id": seeded_cluster["client_id"],
+        "priority": "NORMAL",
+        "duration": 10,
+        "requirements": [{"resource_type": "CPU", "amount": 2}, {"resource_type": "CPU", "amount": 3}],
+    })
+    assert resp.status_code == 422
+
+
 @pytest.mark.parametrize("bad_payload", [
     {"duration": 10, "requirements": []},  # no requirements at all
     {"duration": 10, "requirements": [{"resource_type": "CPU", "amount": 0}]},  # zero amount
@@ -443,6 +453,17 @@ def test_cancel_reservation_unknown_returns_404(api_client, db):
     assert resp.status_code == 404
 
 
+def test_set_node_down_returns_200(api_client, db, seeded_cluster):
+    node_id = seeded_cluster["nodes"][0].node_id
+    resp = api_client.patch(f"/nodes/{node_id}/down")
+    assert resp.status_code == 200, resp.text
+
+
+def test_set_node_down_unknown_node_returns_404(api_client, db):
+    resp = api_client.patch("/nodes/999999/down")
+    assert resp.status_code == 404
+
+
 def test_docs_lists_all_routes(api_client):
     resp = api_client.get("/openapi.json")
     paths = resp.json()["paths"]
@@ -457,6 +478,7 @@ def test_docs_lists_all_routes(api_client):
     assert "/institutes/{institute_id}" in paths and "get" in paths["/institutes/{institute_id}"]
     assert "/clusters" in paths and "post" in paths["/clusters"] and "get" in paths["/clusters"]
     assert "/clusters/{cluster_id}" in paths and "get" in paths["/clusters/{cluster_id}"]
+    assert "/nodes/{node_id}/down" in paths and "patch" in paths["/nodes/{node_id}/down"]
     assert "/quotas" in paths and "post" in paths["/quotas"] and "delete" in paths["/quotas/{quota_id}"]
     assert "/reservations" in paths and "post" in paths["/reservations"]
     assert "delete" in paths["/reservations/{reservation_id}"]
