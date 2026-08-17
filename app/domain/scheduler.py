@@ -5,9 +5,18 @@ database; the server layer owns persistence. Placer decides *where* a selected
 job runs.
 """
 
+from dataclasses import dataclass
 from queue import Empty, PriorityQueue
 
+from app.enums import Priority
+
 from .sort_strategy import FifoSort
+
+
+@dataclass
+class PendingJob:
+    job_id: int
+    priority: Priority
 
 
 class Scheduler:
