@@ -1,0 +1,8 @@
+{
+  "name": "job-scheduler",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "generate:api": "PYTHONPATH=backend backend/.venv/bin/python scripts/export_openapi.py && pnpm --filter frontend generate:api"
+  }
+}
