@@ -75,15 +75,22 @@ export function AdminQuotasPage() {
     },
   });
 
+  const limitValid = Number.isInteger(limit) && limit > 0;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (instituteId !== "" && limit > 0) create.mutate();
+    if (instituteId !== "" && limitValid) create.mutate();
   }
 
   return (
     <div className="max-w-2xl space-y-4">
       <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
-        <select className={INPUT_CLASS} value={instituteId} onChange={(e) => setInstituteId(e.target.value === "" ? "" : Number(e.target.value))}>
+        <select
+          aria-label="Institute"
+          className={INPUT_CLASS}
+          value={instituteId}
+          onChange={(e) => setInstituteId(e.target.value === "" ? "" : Number(e.target.value))}
+        >
           <option value="">Institute…</option>
           {(institutesQuery.data ?? []).map((i) => (
             <option key={i.institute_id} value={i.institute_id}>
@@ -91,22 +98,31 @@ export function AdminQuotasPage() {
             </option>
           ))}
         </select>
-        <select className={INPUT_CLASS} value={resourceType} onChange={(e) => setResourceType(e.target.value as ResourceType)}>
+        <select aria-label="Resource type" className={INPUT_CLASS} value={resourceType} onChange={(e) => setResourceType(e.target.value as ResourceType)}>
           {RESOURCE_TYPES.map((rt) => (
             <option key={rt} value={rt}>
               {rt}
             </option>
           ))}
         </select>
-        <input type="number" min={1} className={`${INPUT_CLASS} w-24`} value={limit} onChange={(e) => setLimit(Number(e.target.value))} />
         <input
+          aria-label="Limit"
+          type="number"
+          min={1}
+          step={1}
+          className={`${INPUT_CLASS} w-24`}
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+        />
+        <input
+          aria-label="Month (defaults to the current month if left blank)"
           type="month"
           className={INPUT_CLASS}
           value={period}
           onChange={(e) => setPeriod(e.target.value)}
           title="Month this quota applies to (defaults to the current month if left blank)"
         />
-        <Button type="submit" size="sm" disabled={instituteId === "" || limit <= 0 || create.isPending}>
+        <Button type="submit" size="sm" disabled={instituteId === "" || !limitValid || create.isPending}>
           <Plus />
           Set quota
         </Button>
@@ -114,6 +130,7 @@ export function AdminQuotasPage() {
       {create.isError && <p className="text-sm text-destructive">{formatApiError(create.error)}</p>}
 
       <select
+        aria-label="Filter by institute"
         className={INPUT_CLASS}
         value={filterInstituteId}
         onChange={(e) => setFilterInstituteId(e.target.value === "" ? "" : Number(e.target.value))}

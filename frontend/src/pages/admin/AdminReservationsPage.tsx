@@ -106,18 +106,25 @@ export function AdminReservationsPage() {
     });
   }
 
+  const periodValid = Boolean(startPeriod) && Boolean(endPeriod) && new Date(endPeriod) > new Date(startPeriod);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (instituteId !== "" && clusterId !== "" && nodeIds.size > 0 && startPeriod && endPeriod && reason.trim()) create.mutate();
+    if (instituteId !== "" && clusterId !== "" && nodeIds.size > 0 && periodValid && reason.trim()) create.mutate();
   }
 
-  const canSubmit = instituteId !== "" && clusterId !== "" && nodeIds.size > 0 && startPeriod && endPeriod && reason.trim() && !create.isPending;
+  const canSubmit = instituteId !== "" && clusterId !== "" && nodeIds.size > 0 && periodValid && reason.trim() && !create.isPending;
 
   return (
     <div className="max-w-2xl space-y-4">
       <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border p-4">
         <div className="flex flex-wrap gap-2">
-          <select className={INPUT_CLASS} value={instituteId} onChange={(e) => setInstituteId(e.target.value === "" ? "" : Number(e.target.value))}>
+          <select
+            aria-label="Institute"
+            className={INPUT_CLASS}
+            value={instituteId}
+            onChange={(e) => setInstituteId(e.target.value === "" ? "" : Number(e.target.value))}
+          >
             <option value="">Institute…</option>
             {(institutesQuery.data ?? []).map((i) => (
               <option key={i.institute_id} value={i.institute_id}>
@@ -126,6 +133,7 @@ export function AdminReservationsPage() {
             ))}
           </select>
           <select
+            aria-label="Cluster"
             className={INPUT_CLASS}
             value={clusterId}
             onChange={(e) => {
@@ -176,6 +184,7 @@ export function AdminReservationsPage() {
             type="datetime-local"
             className={INPUT_CLASS}
             value={endPeriod}
+            min={startPeriod || undefined}
             onChange={(e) => setEndPeriod(e.target.value)}
             aria-label="End period"
           />
@@ -191,10 +200,12 @@ export function AdminReservationsPage() {
           <Plus />
           Create reservation
         </Button>
+        {startPeriod && endPeriod && !periodValid && <p className="text-sm text-destructive">End period must be after start period.</p>}
         {create.isError && <p className="text-sm text-destructive">{formatApiError(create.error)}</p>}
       </form>
 
       <select
+        aria-label="Filter by institute"
         className={INPUT_CLASS}
         value={filterInstituteId}
         onChange={(e) => setFilterInstituteId(e.target.value === "" ? "" : Number(e.target.value))}

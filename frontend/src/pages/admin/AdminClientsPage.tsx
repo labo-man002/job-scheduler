@@ -61,6 +61,7 @@ export function AdminClientsPage() {
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input className={`${INPUT_CLASS} flex-1`} placeholder="Owner name" value={owner} onChange={(e) => setOwner(e.target.value)} />
         <select
+          aria-label="Institute"
           className={INPUT_CLASS}
           value={newClientInstituteId}
           onChange={(e) => setNewClientInstituteId(e.target.value === "" ? "" : Number(e.target.value))}
@@ -80,6 +81,7 @@ export function AdminClientsPage() {
       {create.isError && <p className="text-sm text-destructive">{formatApiError(create.error)}</p>}
 
       <select
+        aria-label="Filter by institute"
         className={INPUT_CLASS}
         value={filterInstituteId}
         onChange={(e) => setFilterInstituteId(e.target.value === "" ? "" : Number(e.target.value))}
