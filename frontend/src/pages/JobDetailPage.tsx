@@ -1,11 +1,26 @@
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, History, ListChecks, Server } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/StatusBadge";
 import { JOB_STATUS_COLOR } from "@/lib/jobStatus";
 import { formatApiError } from "@/lib/apiError";
+import { LoadingState } from "@/components/LoadingState";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const CANCELLABLE_STATUSES = new Set(["QUEUED", "RUNNING"]);
+
+function SectionHeading({ icon: Icon, children }: { icon: typeof ListChecks; children: React.ReactNode }) {
+  return (
+    <h2 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <Icon className="size-3.5" />
+      {children}
+    </h2>
+  );
+}
 
 export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -47,10 +62,25 @@ export function JobDetailPage() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+    onSuccess: () => {
+      toast.success(`Job ${id} cancelled`);
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    },
   });
 
-  if (jobQuery.isPending) return <p className="p-6 text-muted-foreground">Loading job…</p>;
+  if (jobQuery.isPending)
+    return (
+      <div className="p-6 max-w-2xl space-y-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
   if (jobQuery.isError) return <p className="p-6 text-destructive">Failed to load job: {String(jobQuery.error)}</p>;
 
   const job = jobQuery.data;
@@ -59,15 +89,13 @@ export function JobDetailPage() {
   return (
     <div className="p-6 max-w-2xl space-y-4">
       <div>
-        <Link to="/jobs" className="text-sm text-muted-foreground hover:underline">
-          ← Jobs
+        <Link to="/jobs" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline">
+          <ArrowLeft className="size-3.5" />
+          Jobs
         </Link>
         <div className="flex items-center gap-2 mt-1">
-          <h1 className="text-2xl font-semibold">Job {job.job_id}</h1>
-          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <span className="inline-block h-2.5 w-2.5" style={{ backgroundColor: color.fill }} />
-            {color.label}
-          </span>
+          <h1 className="text-2xl font-semibold tracking-tight">Job {job.job_id}</h1>
+          <StatusBadge fill={color.fill} label={color.label} pulse={job.status === "RUNNING"} />
         </div>
         <p className="font-mono text-sm text-muted-foreground">
           client {job.client_id} · {job.priority} · {job.duration}min · submitted {new Date(job.submitted_at).toLocaleString()}
@@ -90,8 +118,8 @@ export function JobDetailPage() {
         </div>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium">Requirements</h2>
+      <Card className="space-y-2 p-4">
+        <SectionHeading icon={ListChecks}>Requirements</SectionHeading>
         <div className="space-y-1 font-mono text-sm">
           {job.requirements.map((r) => (
             <div key={r.resource_type} className="flex items-center justify-between rounded-md border px-3 py-1.5">
@@ -100,11 +128,11 @@ export function JobDetailPage() {
             </div>
           ))}
         </div>
-      </section>
+      </Card>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium">Allocation</h2>
-        {allocationQuery.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
+      <Card className="space-y-2 p-4">
+        <SectionHeading icon={Server}>Allocation</SectionHeading>
+        {allocationQuery.isPending && <LoadingState text="Loading…" />}
         {allocationQuery.isError && <p className="text-sm text-destructive">Failed to load allocation: {String(allocationQuery.error)}</p>}
         {allocationQuery.data === null && <p className="text-sm text-muted-foreground">No allocation yet.</p>}
         {allocationQuery.data && (
@@ -121,25 +149,30 @@ export function JobDetailPage() {
             ))}
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium">Event history</h2>
-        {eventsQuery.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
+      <Card className="space-y-3 p-4">
+        <SectionHeading icon={History}>Event history</SectionHeading>
+        {eventsQuery.isPending && <LoadingState text="Loading…" />}
         {eventsQuery.isError && <p className="text-sm text-destructive">Failed to load events: {String(eventsQuery.error)}</p>}
         {eventsQuery.data && (
-          <ol className="space-y-1">
+          <ol className="space-y-4 border-l pl-4">
             {eventsQuery.data.map((event, i) => (
-              <li key={i} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
-                <span>
-                  <span className="font-mono">{event.event_type}</span> — {event.comment}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground">{new Date(event.time).toLocaleString()}</span>
+              <li key={i} className="relative">
+                <span
+                  className="absolute -left-[21px] top-1 size-2.5 rounded-full ring-4 ring-background"
+                  style={{ backgroundColor: JOB_STATUS_COLOR[event.event_type].fill }}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm">{event.event_type}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{new Date(event.time).toLocaleString()}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{event.comment}</p>
               </li>
             ))}
           </ol>
         )}
-      </section>
+      </Card>
     </div>
   );
 }
