@@ -68,7 +68,7 @@ class Scheduler:
 
     def release_node(self, node):
         """Release every resource on ``node`` through the configured placer."""
-        return self.placer.release_resource(list(node.resources))
+        self.placer.release_resource(list(node.resources))
 
     def _rebuild_queue(self):
         self.job_queue = PriorityQueue()

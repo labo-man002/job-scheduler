@@ -8,16 +8,12 @@ greenlet==3.5.4
 h11==0.16.0
 httpx2==2.10.0
 idna==3.18
-iniconfig==2.3.0
 Mako==1.4.1
 MarkupSafe==3.0.3
-packaging==26.3
-pluggy==1.6.0
 psycopg2-binary==2.9.12
 pydantic==2.13.4
 pydantic-settings==2.14.2
 pydantic_core==2.46.4
-Pygments==2.21.0
 pytest==9.1.1
 python-dotenv==1.2.2
 SQLAlchemy==2.0.51
