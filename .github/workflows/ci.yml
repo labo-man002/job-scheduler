@@ -53,6 +53,15 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    env:
+      # Settings() validates these are present at import time (config.py), even
+      # though nothing on the codegen path ever opens a real connection -- no
+      # Postgres service in this job, these are just placeholders.
+      DATABASE_HOSTNAME: localhost
+      DATABASE_PORT: "5432"
+      DATABASE_USERNAME: placeholder
+      DATABASE_PASSWORD: placeholder
+      DATABASE_NAME: placeholder
     steps:
       - uses: actions/checkout@v4
 
