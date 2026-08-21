@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { ClustersPage } from "@/pages/ClustersPage";
+import { ClusterDetailPage } from "@/pages/ClusterDetailPage";
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -22,6 +23,7 @@ function App() {
       <Routes>
         <Route path="/" element={<ClustersPage />} />
         <Route path="/clusters" element={<ClustersPage />} />
+        <Route path="/clusters/:clusterId" element={<ClusterDetailPage />} />
       </Routes>
     </>
   );

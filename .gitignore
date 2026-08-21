@@ -16,6 +16,7 @@ frontend/src/api/schema.d.ts
 .env
 .DS_Store
 CLAUDE.md
+STRATEGY.md
 
 # IDE
 .vscode/

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 
@@ -22,11 +23,13 @@ export function ClustersPage() {
       ) : (
         <ul className="space-y-2">
           {data.map((cluster) => (
-            <li key={cluster.cluster_id} className="rounded-md border p-4">
-              <div className="font-medium">{cluster.cluster_name}</div>
-              <div className="text-sm text-muted-foreground">
-                {cluster.topology_type} · {cluster.free_capacity}/{cluster.total_capacity} free
-              </div>
+            <li key={cluster.cluster_id}>
+              <Link to={`/clusters/${cluster.cluster_id}`} className="block rounded-md border p-4 hover:bg-secondary/50">
+                <div className="font-medium">{cluster.cluster_name}</div>
+                <div className="text-sm text-muted-foreground">
+                  {cluster.topology_type} · {cluster.free_capacity}/{cluster.total_capacity} free
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
