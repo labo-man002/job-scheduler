@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: job_scheduler
+          POSTGRES_PASSWORD: job_scheduler
+          POSTGRES_DB: job_scheduler
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_HOSTNAME: localhost
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: job_scheduler
+      DATABASE_PASSWORD: job_scheduler
+      DATABASE_NAME: job_scheduler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt ruff
+
+      - name: Lint
+        working-directory: backend
+        run: ruff check .
+
+      - name: Run migrations
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Run tests
+        working-directory: backend
+        run: PYTHONPATH=. pytest -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Needed only to generate the typed API client below (app.openapi() builds
+      # the schema from route definitions, no DB connection required) -- no
+      # Postgres service in this job.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install backend dependencies (for schema generation only)
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate typed API client from the backend's current schema
+        run: |
+          PYTHONPATH=backend python scripts/export_openapi.py
+          pnpm --filter frontend generate:api
+
+      - name: Build
+        run: pnpm --filter frontend build
+
+      - name: Test
+        run: pnpm --filter frontend test
+
+      - name: Lint
+        run: pnpm --filter frontend lint

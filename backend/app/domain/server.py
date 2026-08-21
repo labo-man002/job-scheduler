@@ -25,6 +25,7 @@ Node/ResourceNode objects.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import ClassVar
 
 from app import models
 from app.domain.exceptions import (
@@ -93,7 +94,7 @@ def _month_bounds(reference: datetime) -> tuple[datetime, datetime]:
 
 
 class Server:
-    _schedulers = {}  # cluster_id -> Scheduler, one per process per cluster
+    _schedulers: ClassVar[dict] = {}  # cluster_id -> Scheduler, one per process per cluster
 
     def __init__(self, db, sort_strategy=None, place_algorithm=None):
         self.db = db
