@@ -22,14 +22,26 @@ const JOB = {
 
 const EVENTS = [{ event_type: "QUEUED", time: "2026-08-21T10:00:00Z", comment: "Submitted" }];
 
-function mockGet(job: typeof JOB) {
+const ALLOCATION = {
+  allocation_id: 5,
+  job_id: 42,
+  allocation_status: "ALLOCATED",
+  begin_time: "2026-08-21T10:05:00Z",
+  end_time: null,
+  duration: null,
+  resource_nodes: [{ resource_node_id: 1, node_id: 100, resource_type: "CPU" }],
+};
+
+function mockGet(job: typeof JOB, allocation: typeof ALLOCATION | null = null) {
   vi.mocked(api.GET)
     .mockReset()
     .mockImplementation(((path: string) => {
       if (path === "/jobs/{job_id}") return Promise.resolve({ data: job, error: undefined, response: new Response(null, { status: 200 }) });
       if (path === "/jobs/{job_id}/events") return Promise.resolve({ data: EVENTS, error: undefined, response: new Response(null, { status: 200 }) });
-      if (path === "/jobs/{job_id}/allocation")
+      if (path === "/jobs/{job_id}/allocation") {
+        if (allocation) return Promise.resolve({ data: allocation, error: undefined, response: new Response(null, { status: 200 }) });
         return Promise.resolve({ data: undefined, error: { detail: "not found" }, response: new Response(null, { status: 404 }) });
+      }
       throw new Error(`unexpected path ${path}`);
     }) as typeof api.GET);
 }
@@ -92,5 +104,12 @@ describe("JobDetailPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: /cancel job/i }));
 
     expect(api.DELETE).not.toHaveBeenCalled();
+  });
+
+  it("shows the allocated resource nodes once a job has an allocation", async () => {
+    mockGet({ ...JOB, status: "RUNNING" }, ALLOCATION);
+    renderPage();
+
+    expect(await screen.findByText("node 100")).toBeInTheDocument();
   });
 });

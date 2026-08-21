@@ -67,6 +67,12 @@ class AllocationOut(BaseOut):
     resource_nodes: list[AllocationNodeOut]
 
 
+class NodeAllocationOut(OurBaseModel):
+    node_id: int
+    job_id: int
+    resource_type: ResourceType
+
+
 class JobListItemOut(OurBaseModel):
     job_id: int
     client_id: int
