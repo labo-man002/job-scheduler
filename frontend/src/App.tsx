@@ -1,6 +1,9 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { ClustersPage } from "@/pages/ClustersPage";
 import { ClusterDetailPage } from "@/pages/ClusterDetailPage";
+import { JobsPage } from "@/pages/JobsPage";
+import { JobSubmitPage } from "@/pages/JobSubmitPage";
+import { JobDetailPage } from "@/pages/JobDetailPage";
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -11,7 +14,10 @@ function Nav() {
       <NavLink to="/clusters" className={linkClass}>
         Clusters
       </NavLink>
-      {/* Jobs (#66) and Admin (#67) views land here once those tickets are built. */}
+      <NavLink to="/jobs" className={linkClass}>
+        Jobs
+      </NavLink>
+      {/* Admin (#67) lands here once that ticket is built. */}
     </nav>
   );
 }
@@ -24,6 +30,9 @@ function App() {
         <Route path="/" element={<ClustersPage />} />
         <Route path="/clusters" element={<ClustersPage />} />
         <Route path="/clusters/:clusterId" element={<ClusterDetailPage />} />
+        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/jobs/new" element={<JobSubmitPage />} />
+        <Route path="/jobs/:jobId" element={<JobDetailPage />} />
       </Routes>
     </>
   );
