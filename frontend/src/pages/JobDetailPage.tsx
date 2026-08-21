@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, History, ListChecks, Server } from "lucide-react";
@@ -6,6 +7,7 @@ import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TopologyView } from "@/components/topology/TopologyView";
 import { JOB_STATUS_COLOR } from "@/lib/jobStatus";
 import { formatApiError } from "@/lib/apiError";
 import { LoadingState } from "@/components/LoadingState";
@@ -19,6 +21,46 @@ function SectionHeading({ icon: Icon, children }: { icon: typeof ListChecks; chi
       <Icon className="size-3.5" />
       {children}
     </h2>
+  );
+}
+
+// Shows *where* on the cluster this job actually landed -- the interesting part of
+// placement (Pack vs. Spread) is spatial, and a flat list of node ids hides that entirely.
+function AllocationTopology({ clusterId, jobId, allocatedNodeIds }: { clusterId: number; jobId: number; allocatedNodeIds: Set<number> }) {
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+
+  const clusterQuery = useQuery({
+    queryKey: ["clusters", clusterId],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/clusters/{cluster_id}", { params: { path: { cluster_id: clusterId } } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (clusterQuery.isPending) return <Skeleton className="h-40 w-full" />;
+  if (clusterQuery.isError) return <p className="text-sm text-destructive">Failed to load cluster topology: {String(clusterQuery.error)}</p>;
+
+  const cluster = clusterQuery.data;
+  const allocationInfoByNodeId = new Map<number, string>();
+  for (const nodeId of allocatedNodeIds) allocationInfoByNodeId.set(nodeId, `allocated to job ${jobId}`);
+
+  return (
+    <div className="space-y-2">
+      <Link to={`/clusters/${clusterId}`} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+        {cluster.cluster_name} ({cluster.topology_type}) →
+      </Link>
+      <div className="flex justify-center overflow-x-auto rounded-md border p-4">
+        <TopologyView
+          dimension={cluster.dimension}
+          wrap={cluster.wrap}
+          nodes={cluster.nodes}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={(node) => setSelectedNodeId(node?.node_id ?? null)}
+          reservationInfoByNodeId={allocationInfoByNodeId}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -147,6 +189,11 @@ export function JobDetailPage() {
                 <span>{rn.resource_type}</span>
               </div>
             ))}
+            <AllocationTopology
+              clusterId={allocationQuery.data.cluster_id}
+              jobId={job.job_id}
+              allocatedNodeIds={new Set(allocationQuery.data.resource_nodes.map((rn) => rn.node_id))}
+            />
           </div>
         )}
       </Card>
