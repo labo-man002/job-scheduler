@@ -460,8 +460,8 @@ def test_create_quota_for_a_future_month(db, seeded_cluster):
 
 def test_reservation_blocks_other_institutes_but_not_the_owner(db):
     reserving_institute, reserving_client = create_institute_and_client(db, owner="owner")
-    other_institute, other_client = create_institute_and_client(db, owner="other", institute_name="Other Institute")
-    cluster, nodes = create_cluster_with_nodes(db, node_count=1, resources_per_node=2)  # exactly one node, capacity 2
+    _other_institute, other_client = create_institute_and_client(db, owner="other", institute_name="Other Institute")
+    _cluster, nodes = create_cluster_with_nodes(db, node_count=1, resources_per_node=2)  # exactly one node, capacity 2
 
     reservation = models.Reservation(
         institute_id=reserving_institute.institute_id,
@@ -630,7 +630,7 @@ def test_create_reservation_rejects_unknown_node(db, seeded_cluster):
 
 
 def test_create_reservation_rejects_node_from_a_different_cluster(db, seeded_cluster):
-    other_cluster, other_nodes = create_cluster_with_nodes(db, node_count=1, resources_per_node=1, cluster_name="other")
+    _other_cluster, other_nodes = create_cluster_with_nodes(db, node_count=1, resources_per_node=1, cluster_name="other")
     server = Server(db)
     with pytest.raises(NodeNotInClusterError):
         server.create_reservation(
@@ -839,7 +839,7 @@ def test_cancel_reservation_rejects_unknown_reservation(db):
 
 def test_cancelled_reservation_no_longer_blocks_other_institutes(db):
     reserving_institute, _ = create_institute_and_client(db, owner="owner")
-    other_institute, other_client = create_institute_and_client(db, owner="other", institute_name="Other Institute")
+    _other_institute, other_client = create_institute_and_client(db, owner="other", institute_name="Other Institute")
     cluster, nodes = create_cluster_with_nodes(db, node_count=1, resources_per_node=2)
 
     server = Server(db)

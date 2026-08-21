@@ -5,8 +5,6 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .config import settings
 
-
-
 SQLALCHEMY_DATABASE_URL = (
     f"postgresql+psycopg2://"
     f"{settings.database_username}:"
