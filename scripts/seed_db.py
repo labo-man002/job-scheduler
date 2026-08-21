@@ -5,8 +5,14 @@ and marks one node per cluster DOWN, so the frontend has something to look
 at. FAT_TREE is skipped -- Server.create_cluster rejects it outright, there's
 no coordinate/dimension model for it yet (see docs/decisions.md).
 
-Re-running this wipes any existing cluster/node/resource rows first. Run via
-the root package.json's seed:db script, which puts backend/ on PYTHONPATH.
+Also registers one institute, two clients, and submits a handful of jobs
+through the real Server.submit_job path (so scheduling/placement actually
+runs) -- gives the Jobs UI something real to show across QUEUED/RUNNING/
+CANCELLED/COMPLETED.
+
+Re-running this wipes any existing cluster/node/resource/job/client/institute
+rows first. Run via the root package.json's seed:db script, which puts
+backend/ on PYTHONPATH.
 """
 
 import logging
@@ -16,6 +22,7 @@ from app import models
 from app.database import SessionLocal
 from app.domain.server import NodeSpec, ResourceCount, Server
 from app.enums.nodeStatus import NodeStatus
+from app.enums.priority import Priority
 from app.enums.resourceStatus import ResourceStatus
 from app.enums.resourceType import ResourceType
 from app.enums.topologyType import TopologyType
@@ -81,9 +88,64 @@ def _randomize_allocations(cluster):
         _recompute_node_status(node)
 
 
+JOBS = [
+    # (owner, priority, duration_minutes, requirements)
+    ("alice", Priority.HIGH, 30, [(ResourceType.CPU, 4), (ResourceType.MEM, 2)]),
+    ("alice", Priority.NORMAL, 120, [(ResourceType.GPU, 1), (ResourceType.CPU, 2)]),
+    ("bob", Priority.URGENT, 15, [(ResourceType.CPU, 8)]),
+    ("bob", Priority.LOW, 240, [(ResourceType.MEM, 4)]),
+    ("bob", Priority.NORMAL, 60, [(ResourceType.GPU, 2), (ResourceType.MEM, 1)]),
+]
+
+
+def _seed_clients(db):
+    server = Server(db)
+    institute = server.register_institute(institute_name="Demo Institute")
+    db.flush()
+    clients = {
+        owner: server.register_client(owner=owner, institute_id=institute.institute_id) for owner in {owner for owner, *_ in JOBS}
+    }
+    db.commit()
+    return clients
+
+
+def _seed_jobs(db, clients):
+    server = Server(db)
+    submitted = []
+    for owner, priority, duration, requirements in JOBS:
+        job = server.submit_job(client_id=clients[owner].client_id, requirements=requirements, priority=priority, duration=duration)
+        db.commit()
+        submitted.append(job)
+        print(f"submitted job {job.job_id} for {owner}: {job.status.value}")
+
+    # Give the status column some real variety beyond whatever QUEUED/RUNNING placement produced.
+    queued = [j for j in submitted if j.status.value == "QUEUED"]
+    running = [j for j in submitted if j.status.value == "RUNNING"]
+    if queued:
+        server.cancel_job(queued[0].job_id)
+        db.commit()
+        print(f"cancelled job {queued[0].job_id} (was QUEUED)")
+    if running:
+        server.complete_job(running[0].job_id)
+        db.commit()
+        print(f"completed job {running[0].job_id} (was RUNNING)")
+
+
 def main():
     db = SessionLocal()
     try:
+        existing_jobs = db.query(models.Job).count()
+        if existing_jobs:
+            print(f"found {existing_jobs} existing job(s) -- wiping job/client/institute tables first")
+            db.query(models.JobEvent).delete()
+            db.query(models.AllocationNode).delete()
+            db.query(models.Allocation).delete()
+            db.query(models.ResourceRequirement).delete()
+            db.query(models.Job).delete()
+            db.query(models.Client).delete()
+            db.query(models.Institute).delete()
+            db.commit()
+
         existing = db.query(models.Cluster).count()
         if existing:
             print(f"found {existing} existing cluster(s) -- wiping node_resource/node/cluster tables first")
@@ -113,6 +175,10 @@ def main():
             print(f"created {cluster.cluster_name} ({spec['topology_type'].value}): {len(cluster.nodes)} nodes")
 
         print("FAT_TREE skipped -- not modeled yet (Server.create_cluster rejects it)")
+
+        clients = _seed_clients(db)
+        print(f"registered institute and {len(clients)} client(s): {', '.join(clients)}")
+        _seed_jobs(db, clients)
     finally:
         db.close()
 
