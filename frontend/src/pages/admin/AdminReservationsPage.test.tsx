@@ -64,6 +64,21 @@ describe("AdminReservationsPage", () => {
     expect(item.closest("li")?.textContent).toMatch(/Institute One/);
   });
 
+  it("labels each reservation's temporal state relative to now", async () => {
+    const now = Date.now();
+    const hour = 60 * 60 * 1000;
+    mockGet([
+      { id: 1, institute_id: 1, cluster_id: 7, start_period: new Date(now - 2 * hour).toISOString(), end_period: new Date(now + 2 * hour).toISOString(), reason: "active-one", node_ids: [100] },
+      { id: 2, institute_id: 1, cluster_id: 7, start_period: new Date(now + hour).toISOString(), end_period: new Date(now + 2 * hour).toISOString(), reason: "upcoming-one", node_ids: [100] },
+      { id: 3, institute_id: 1, cluster_id: 7, start_period: new Date(now - 2 * hour).toISOString(), end_period: new Date(now - hour).toISOString(), reason: "past-one", node_ids: [100] },
+    ]);
+
+    renderPage();
+    expect((await screen.findByText(/active-one/)).closest("li")?.textContent).toMatch(/Active/);
+    expect((await screen.findByText(/upcoming-one/)).closest("li")?.textContent).toMatch(/Upcoming/);
+    expect((await screen.findByText(/past-one/)).closest("li")?.textContent).toMatch(/Past/);
+  });
+
   it("reveals the node picker once a cluster is selected, and toggles node selection", async () => {
     renderPage();
     await screen.findByText(/maintenance/);

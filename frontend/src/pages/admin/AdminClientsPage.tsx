@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/EmptyState";
+import { StatusBadge } from "@/components/StatusBadge";
+import { CLIENT_STATUS_COLOR } from "@/lib/clientStatus";
 import { formatApiError } from "@/lib/apiError";
 
 const INPUT_CLASS = "h-8 rounded-md border bg-background px-2 text-sm";
@@ -107,18 +109,23 @@ export function AdminClientsPage() {
       )}
       {clientsQuery.data && clientsQuery.data.length > 0 && (
         <ul className="space-y-2">
-          {clientsQuery.data.map((client) => (
-            <li key={client.client_id}>
-              <Card className="flex items-center gap-3 p-3">
-                <User className="size-4 text-muted-foreground" />
-                <span className="font-medium">{client.owner}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  client {client.client_id} · {instituteNameById.get(client.institute_id) ?? `institute ${client.institute_id}`} ·{" "}
-                  {client.client_status}
-                </span>
-              </Card>
-            </li>
-          ))}
+          {clientsQuery.data.map((client) => {
+            const color = CLIENT_STATUS_COLOR[client.client_status];
+            return (
+              <li key={client.client_id}>
+                <Card className="flex items-center justify-between gap-3 p-3">
+                  <div className="flex items-center gap-3">
+                    <User className="size-4 text-muted-foreground" />
+                    <span className="font-medium">{client.owner}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      client {client.client_id} · {instituteNameById.get(client.institute_id) ?? `institute ${client.institute_id}`}
+                    </span>
+                  </div>
+                  <StatusBadge fill={color.fill} label={color.label} pulse={client.client_status === "ONLINE"} />
+                </Card>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

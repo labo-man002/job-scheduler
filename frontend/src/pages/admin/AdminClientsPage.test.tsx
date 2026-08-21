@@ -44,6 +44,12 @@ describe("AdminClientsPage", () => {
     expect(owner.closest("li")?.textContent).toMatch(/Institute One/);
   });
 
+  it("shows an ONLINE client's status badge", async () => {
+    renderPage();
+    const owner = await screen.findByText("alice");
+    expect(owner.closest("li")?.textContent).toMatch(/Online/);
+  });
+
   it("requires both an owner name and an institute before registering", async () => {
     renderPage();
     await screen.findByText("alice");

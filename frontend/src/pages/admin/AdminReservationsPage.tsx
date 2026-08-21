@@ -7,9 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/EmptyState";
+import { StatusBadge } from "@/components/StatusBadge";
 import { formatApiError } from "@/lib/apiError";
 
 const INPUT_CLASS = "h-8 rounded-md border bg-background px-2 text-sm";
+
+const RESERVATION_STATE_COLOR = {
+  active: { fill: "#2563eb", label: "Active" },
+  upcoming: { fill: "#d97706", label: "Upcoming" },
+  past: { fill: "#64748b", label: "Past" },
+};
+
+function reservationState(reservation: { start_period: string; end_period: string }): keyof typeof RESERVATION_STATE_COLOR {
+  const now = Date.now();
+  if (now < new Date(reservation.start_period).getTime()) return "upcoming";
+  if (now >= new Date(reservation.end_period).getTime()) return "past";
+  return "active";
+}
 
 export function AdminReservationsPage() {
   const queryClient = useQueryClient();
@@ -231,36 +245,43 @@ export function AdminReservationsPage() {
       )}
       {reservationsQuery.data && reservationsQuery.data.length > 0 && (
         <ul className="space-y-2">
-          {reservationsQuery.data.map((reservation) => (
-            <li key={reservation.id}>
-              <Card className="flex items-center justify-between gap-3 p-3">
-                <div className="flex items-start gap-3">
-                  <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <div>
-                    <div className="font-mono text-sm">
-                      {instituteNameById.get(reservation.institute_id) ?? `institute ${reservation.institute_id}`} · cluster{" "}
-                      {reservation.cluster_id} · nodes [{reservation.node_ids.join(",")}]
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {new Date(reservation.start_period).toLocaleString()} → {new Date(reservation.end_period).toLocaleString()} ·{" "}
-                      {reservation.reason}
+          {reservationsQuery.data.map((reservation) => {
+            const state = reservationState(reservation);
+            const color = RESERVATION_STATE_COLOR[state];
+            return (
+              <li key={reservation.id}>
+                <Card className="flex items-center justify-between gap-3 p-3">
+                  <div className="flex items-start gap-3">
+                    <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <div className="font-mono text-sm">
+                        {instituteNameById.get(reservation.institute_id) ?? `institute ${reservation.institute_id}`} · cluster{" "}
+                        {reservation.cluster_id} · nodes [{reservation.node_ids.join(",")}]
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {new Date(reservation.start_period).toLocaleString()} → {new Date(reservation.end_period).toLocaleString()} ·{" "}
+                        {reservation.reason}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Cancel reservation"
-                  disabled={cancel.isPending}
-                  onClick={() => {
-                    if (window.confirm("Cancel this reservation?")) cancel.mutate(reservation.id);
-                  }}
-                >
-                  <Trash2 />
-                </Button>
-              </Card>
-            </li>
-          ))}
+                  <div className="flex items-center gap-2">
+                    <StatusBadge fill={color.fill} label={color.label} pulse={state === "active"} />
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Cancel reservation"
+                      disabled={cancel.isPending}
+                      onClick={() => {
+                        if (window.confirm("Cancel this reservation?")) cancel.mutate(reservation.id);
+                      }}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </Card>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
