@@ -75,8 +75,8 @@ def _reservation_list_item(reservation):
 
 
 @router.get("", response_model=list[schemas.ReservationListItemOut])
-def list_reservations(db: DbDep, institute_id: int | None = None):
-    return [_reservation_list_item(r) for r in Server(db).list_reservations(institute_id=institute_id)]
+def list_reservations(db: DbDep, institute_id: int | None = None, cluster_id: int | None = None):
+    return [_reservation_list_item(r) for r in Server(db).list_reservations(institute_id=institute_id, cluster_id=cluster_id)]
 
 
 @router.delete("/{reservation_id}", response_model=schemas.BaseOut)

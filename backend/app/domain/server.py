@@ -215,10 +215,20 @@ class Server:
         logger.info("reservation %s created: institute=%s nodes=%s", reservation.id, institute_id, node_ids)
         return reservation
 
-    def list_reservations(self, institute_id=None):
+    def list_reservations(self, institute_id=None, cluster_id=None):
         query = self.db.query(models.Reservation)
         if institute_id is not None:
             query = query.filter_by(institute_id=institute_id)
+        if cluster_id is not None:
+            # Reservation has no cluster_id column of its own -- join through its
+            # nodes (every node in a reservation shares one cluster, enforced at
+            # creation) to filter by it.
+            query = (
+                query.join(models.NodeReservation, models.NodeReservation.reservation_id == models.Reservation.id)
+                .join(models.Node, models.Node.node_id == models.NodeReservation.node_id)
+                .filter(models.Node.cluster_id == cluster_id)
+                .distinct()
+            )
         return query.all()
 
     def cancel_reservation(self, reservation_id):

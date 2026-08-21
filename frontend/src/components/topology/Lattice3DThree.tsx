@@ -12,6 +12,7 @@ const UNIT = 1.4;
 const NODE_SIZE = 0.85;
 const EDGE_COLOR = "#94a3b8";
 const SELECTED_OUTLINE_COLOR = "#0f172a";
+const RESERVED_OUTLINE_COLOR = "#64748b"; // neutral, not tied to any status color -- matches the 2D view's dashed-but-same-hue treatment in spirit
 
 // Shared across every cube instance -- there's no reason for each node to allocate its
 // own geometry when they're all the same size.
@@ -65,6 +66,7 @@ function NodeCube({
   node,
   dimension,
   selected,
+  reserved,
   onSelect,
   onHover,
   onUnhover,
@@ -72,6 +74,7 @@ function NodeCube({
   node: NodeOut;
   dimension: number[];
   selected: boolean;
+  reserved: boolean;
   onSelect: () => void;
   onHover: (e: ThreeEvent<PointerEvent>) => void;
   onUnhover: () => void;
@@ -94,6 +97,11 @@ function NodeCube({
       >
         <meshBasicMaterial color={color.fill} />
       </mesh>
+      {reserved && !selected && (
+        <lineSegments geometry={SELECTED_OUTLINE_GEOMETRY}>
+          <lineBasicMaterial color={RESERVED_OUTLINE_COLOR} />
+        </lineSegments>
+      )}
       {selected && (
         <lineSegments geometry={SELECTED_OUTLINE_GEOMETRY}>
           <lineBasicMaterial color={SELECTED_OUTLINE_COLOR} />
@@ -119,11 +127,20 @@ interface Lattice3DThreeProps {
   wrap: boolean;
   selectedNodeId: number | null;
   onSelectNode: (node: NodeOut) => void;
+  reservationInfoByNodeId?: Map<number, string>;
 }
 
 const CONTAINER_HEIGHT = 560;
+const EMPTY_RESERVATIONS: Map<number, string> = new Map();
 
-export function Lattice3DThree({ nodes, dimension, wrap, selectedNodeId, onSelectNode }: Lattice3DThreeProps) {
+export function Lattice3DThree({
+  nodes,
+  dimension,
+  wrap,
+  selectedNodeId,
+  onSelectNode,
+  reservationInfoByNodeId = EMPTY_RESERVATIONS,
+}: Lattice3DThreeProps) {
   const edges = useMemo(() => buildEdges(nodes, 3), [nodes]);
   const { ghosts, connectors } = useMemo(() => (wrap ? buildWrapGhosts(nodes, dimension, 1) : { ghosts: [], connectors: [] }), [nodes, dimension, wrap]);
   const [hover, setHover] = useState<{ node: NodeOut; x: number; y: number } | null>(null);
@@ -176,6 +193,7 @@ export function Lattice3DThree({ nodes, dimension, wrap, selectedNodeId, onSelec
               node={node}
               dimension={dimension}
               selected={node.node_id === selectedNodeId}
+              reserved={reservationInfoByNodeId.has(node.node_id)}
               onSelect={() => onSelectNode(node)}
               onHover={(e) => setHover({ node, x: e.clientX, y: e.clientY })}
               onUnhover={() => setHover(null)}
@@ -189,9 +207,12 @@ export function Lattice3DThree({ nodes, dimension, wrap, selectedNodeId, onSelec
           style={{ left: hover.x + 12, top: hover.y + 12 }}
         >
           {nodeTitle(hover.node)}
+          {reservationInfoByNodeId.has(hover.node.node_id) && ` -- ${reservationInfoByNodeId.get(hover.node.node_id)}`}
         </div>
       )}
-      <p className="mt-2 text-xs text-muted-foreground">Drag to orbit, scroll to zoom. Click a node to select it.</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Drag to orbit, scroll to zoom. Click a node to select it. A gray outline marks a reserved node.
+      </p>
     </div>
   );
 }

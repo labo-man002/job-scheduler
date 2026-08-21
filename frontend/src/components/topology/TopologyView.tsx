@@ -27,6 +27,7 @@ interface TopologyViewProps {
   nodes: NodeOut[];
   selectedNodeId: number | null;
   onSelectNode: (node: NodeOut | null) => void;
+  reservationInfoByNodeId?: Map<number, string>;
 }
 
 function NodeBox({
@@ -35,23 +36,26 @@ function NodeBox({
   y,
   selected,
   onSelect,
+  reservationInfo,
 }: {
   node: NodeOut;
   x: number;
   y: number;
   selected: boolean;
   onSelect: () => void;
+  reservationInfo?: string;
 }) {
   const color = NODE_STATUS_COLOR[node.status];
   return (
     <g transform={`translate(${x}, ${y})`} onClick={onSelect} className="cursor-pointer">
-      <title>{nodeTitle(node)}</title>
+      <title>{reservationInfo ? `${nodeTitle(node)} -- ${reservationInfo}` : nodeTitle(node)}</title>
       <rect
         width={CELL}
         height={CELL}
         fill={color.fill}
         stroke={selected ? "#0f172a" : color.border}
         strokeWidth={selected ? 2 : 1}
+        strokeDasharray={reservationInfo ? "4 2" : undefined}
       />
       <text
         x={CELL / 2}
@@ -85,6 +89,10 @@ export function StatusLegend() {
           {NODE_STATUS_COLOR[status].label}
         </div>
       ))}
+      <div className="flex items-center gap-1.5">
+        <span className="inline-block h-2.5 w-2.5 border-2 border-dashed border-muted-foreground" />
+        Reserved
+      </div>
     </div>
   );
 }
@@ -95,12 +103,14 @@ function Ring({
   wrap,
   selectedNodeId,
   onSelectNode,
+  reservationInfoByNodeId,
 }: {
   nodes: NodeOut[];
   dimension: number[];
   wrap: boolean;
   selectedNodeId: number | null;
   onSelectNode: (node: NodeOut) => void;
+  reservationInfoByNodeId: Map<number, string>;
 }) {
   const sorted = [...nodes].sort((a, b) => a.coordinates[0] - b.coordinates[0]);
 
@@ -115,7 +125,15 @@ function Ring({
         </g>
         <g>
           {sorted.map((node, i) => (
-            <NodeBox key={node.node_id} node={node} x={i * STEP} y={0} selected={node.node_id === selectedNodeId} onSelect={() => onSelectNode(node)} />
+            <NodeBox
+              key={node.node_id}
+              node={node}
+              x={i * STEP}
+              y={0}
+              selected={node.node_id === selectedNodeId}
+              onSelect={() => onSelectNode(node)}
+              reservationInfo={reservationInfoByNodeId.get(node.node_id)}
+            />
           ))}
         </g>
       </svg>
@@ -141,7 +159,15 @@ function Ring({
       </g>
       <g>
         {positions.map(({ node, cx, cy }) => (
-          <NodeBox key={node.node_id} node={node} x={cx - CELL / 2} y={cy - CELL / 2} selected={node.node_id === selectedNodeId} onSelect={() => onSelectNode(node)} />
+          <NodeBox
+            key={node.node_id}
+            node={node}
+            x={cx - CELL / 2}
+            y={cy - CELL / 2}
+            selected={node.node_id === selectedNodeId}
+            onSelect={() => onSelectNode(node)}
+            reservationInfo={reservationInfoByNodeId.get(node.node_id)}
+          />
         ))}
       </g>
     </svg>
@@ -154,12 +180,14 @@ function Grid2D({
   wrap,
   selectedNodeId,
   onSelectNode,
+  reservationInfoByNodeId,
 }: {
   nodes: NodeOut[];
   dimension: number[];
   wrap: boolean;
   selectedNodeId: number | null;
   onSelectNode: (node: NodeOut) => void;
+  reservationInfoByNodeId: Map<number, string>;
 }) {
   const edges = useMemo(() => buildEdges(nodes, 2), [nodes]);
   const { ghosts, connectors } = useMemo(() => (wrap ? buildWrapGhosts(nodes, dimension, 2) : { ghosts: [], connectors: [] }), [nodes, dimension, wrap]);
@@ -193,7 +221,17 @@ function Grid2D({
       <g>
         {nodes.map((node) => {
           const p = pos(node.coordinates);
-          return <NodeBox key={node.node_id} node={node} x={p.x} y={p.y} selected={node.node_id === selectedNodeId} onSelect={() => onSelectNode(node)} />;
+          return (
+            <NodeBox
+              key={node.node_id}
+              node={node}
+              x={p.x}
+              y={p.y}
+              selected={node.node_id === selectedNodeId}
+              onSelect={() => onSelectNode(node)}
+              reservationInfo={reservationInfoByNodeId.get(node.node_id)}
+            />
+          );
         })}
       </g>
     </svg>
@@ -208,12 +246,14 @@ function Lattice3D({
   wrap,
   selectedNodeId,
   onSelectNode,
+  reservationInfoByNodeId,
 }: {
   nodes: NodeOut[];
   dimension: number[];
   wrap: boolean;
   selectedNodeId: number | null;
   onSelectNode: (node: NodeOut) => void;
+  reservationInfoByNodeId: Map<number, string>;
 }) {
   const edges = useMemo(() => buildEdges(nodes, 3), [nodes]);
   const { ghosts, connectors } = useMemo(() => (wrap ? buildWrapGhosts(nodes, dimension, 1) : { ghosts: [], connectors: [] }), [nodes, dimension, wrap]);
@@ -281,6 +321,7 @@ function Lattice3D({
               y={p.y}
               selected={entry.node.node_id === selectedNodeId}
               onSelect={() => onSelectNode(entry.node)}
+              reservationInfo={reservationInfoByNodeId.get(entry.node.node_id)}
             />
           );
         })}
@@ -289,7 +330,16 @@ function Lattice3D({
   );
 }
 
-export function TopologyView({ dimension, wrap, nodes, selectedNodeId, onSelectNode }: TopologyViewProps) {
+const EMPTY_RESERVATIONS: Map<number, string> = new Map();
+
+export function TopologyView({
+  dimension,
+  wrap,
+  nodes,
+  selectedNodeId,
+  onSelectNode,
+  reservationInfoByNodeId = EMPTY_RESERVATIONS,
+}: TopologyViewProps) {
   const axisCount = dimension.length;
   const nodesByKey = useMemo(() => nodesByCoordKey(nodes), [nodes]);
 
@@ -353,9 +403,36 @@ export function TopologyView({ dimension, wrap, nodes, selectedNodeId, onSelectN
       <div aria-live="polite" className="sr-only">
         {selected ? nodeTitle(selected) : "no node selected"}
       </div>
-      {axisCount === 1 && <Ring nodes={nodes} dimension={dimension} wrap={wrap} selectedNodeId={selectedNodeId} onSelectNode={select} />}
-      {axisCount === 2 && <Grid2D nodes={nodes} dimension={dimension} wrap={wrap} selectedNodeId={selectedNodeId} onSelectNode={select} />}
-      {axisCount >= 3 && <Lattice3D nodes={nodes} dimension={dimension} wrap={wrap} selectedNodeId={selectedNodeId} onSelectNode={select} />}
+      {axisCount === 1 && (
+        <Ring
+          nodes={nodes}
+          dimension={dimension}
+          wrap={wrap}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={select}
+          reservationInfoByNodeId={reservationInfoByNodeId}
+        />
+      )}
+      {axisCount === 2 && (
+        <Grid2D
+          nodes={nodes}
+          dimension={dimension}
+          wrap={wrap}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={select}
+          reservationInfoByNodeId={reservationInfoByNodeId}
+        />
+      )}
+      {axisCount >= 3 && (
+        <Lattice3D
+          nodes={nodes}
+          dimension={dimension}
+          wrap={wrap}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={select}
+          reservationInfoByNodeId={reservationInfoByNodeId}
+        />
+      )}
     </div>
   );
 }
