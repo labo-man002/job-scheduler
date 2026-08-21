@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema.d.ts";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { formatApiError } from "@/lib/apiError";
 
 type Priority = components["schemas"]["Priority"];
@@ -44,7 +47,10 @@ export function JobSubmitPage() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (job) => navigate(`/jobs/${job.job_id}`),
+    onSuccess: (job) => {
+      toast.success(`Job ${job.job_id} submitted`);
+      navigate(`/jobs/${job.job_id}`);
+    },
   });
 
   function updateRequirement(index: number, patch: Partial<RequirementRow>) {
@@ -71,15 +77,17 @@ export function JobSubmitPage() {
   return (
     <div className="p-6 max-w-lg space-y-4">
       <div>
-        <Link to="/jobs" className="text-sm text-muted-foreground hover:underline">
-          ← Jobs
+        <Link to="/jobs" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline">
+          <ArrowLeft className="size-3.5" />
+          Jobs
         </Link>
-        <h1 className="text-2xl font-semibold mt-1">Submit job</h1>
+        <h1 className="text-2xl font-semibold tracking-tight mt-1">Submit job</h1>
       </div>
 
+      <Card className="p-5">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1">
-          <label htmlFor="job-client" className="text-sm font-medium">
+          <label htmlFor="job-client" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Client
           </label>
           <select
@@ -99,7 +107,7 @@ export function JobSubmitPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label htmlFor="job-priority" className="text-sm font-medium">
+            <label htmlFor="job-priority" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Priority
             </label>
             <select
@@ -116,7 +124,7 @@ export function JobSubmitPage() {
             </select>
           </div>
           <div className="space-y-1">
-            <label htmlFor="job-duration" className="text-sm font-medium">
+            <label htmlFor="job-duration" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Duration (minutes)
             </label>
             <input
@@ -132,7 +140,7 @@ export function JobSubmitPage() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Resource requirements</label>
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resource requirements</label>
           {requirements.map((row, i) => (
             <div key={i} className="flex gap-2">
               <select
@@ -159,11 +167,12 @@ export function JobSubmitPage() {
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                aria-label={`Remove requirement ${i + 1}`}
                 disabled={requirements.length === 1}
                 onClick={() => setRequirements((rows) => rows.filter((_, idx) => idx !== i))}
               >
-                Remove
+                <X />
               </Button>
             </div>
           ))}
@@ -173,7 +182,8 @@ export function JobSubmitPage() {
             size="sm"
             onClick={() => setRequirements((rows) => [...rows, { resource_type: "CPU", amount: 1 }])}
           >
-            + Add requirement
+            <Plus />
+            Add requirement
           </Button>
         </div>
 
@@ -185,6 +195,7 @@ export function JobSubmitPage() {
           {submit.isPending ? "Submitting…" : "Submit job"}
         </Button>
       </form>
+      </Card>
     </div>
   );
 }

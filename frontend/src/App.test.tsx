@@ -18,6 +18,8 @@ function renderApp() {
 describe("App", () => {
   it("renders the nav", () => {
     renderApp();
-    expect(screen.getByText("Clusters")).toBeInTheDocument();
+    // "Clusters" now legitimately appears twice -- the nav link and the page's own
+    // heading (which stays visible even while the page is loading, unlike before).
+    expect(screen.getByRole("link", { name: "Clusters" })).toBeInTheDocument();
   });
 });

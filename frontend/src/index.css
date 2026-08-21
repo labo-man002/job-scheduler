@@ -49,6 +49,7 @@
 }
 
 :root {
+    --dot-color: oklch(0.145 0 0 / 15%);
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -84,6 +85,7 @@
 }
 
 .dark {
+    --dot-color: oklch(0.985 0 0 / 18%);
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
@@ -123,8 +125,25 @@
     }
   body {
     @apply bg-background text-foreground;
+    background-image: radial-gradient(circle, var(--dot-color) 1.5px, transparent 1.5px);
+    background-size: 20px 20px;
     }
   html {
     @apply font-sans;
     }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--pulse-color, currentColor);
+  }
+  50% {
+    box-shadow: 0 0 4px 1.5px var(--pulse-color, currentColor);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-pulse {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
 }
