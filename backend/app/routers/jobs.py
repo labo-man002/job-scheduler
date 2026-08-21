@@ -116,7 +116,6 @@ def get_allocation(job_id: int, db: DbDep):
     return schemas.AllocationOut(
         allocation_id=allocation.allocation_id,
         job_id=allocation.job_id,
-        cluster_id=allocation.allocation_nodes[0].resource_node.node.cluster_id,
         allocation_status=allocation.allocation_status,
         begin_time=allocation.begin_time,
         end_time=allocation.end_time,

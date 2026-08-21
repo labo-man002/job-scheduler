@@ -20,7 +20,17 @@ const Lattice3DThree = lazy(() => import("@/components/topology/Lattice3DThree")
 
 type NodeOut = components["schemas"]["NodeOut"];
 
-function NodeDetailPanel({ node, onMarkedDown }: { node: NodeOut; onMarkedDown: () => void }) {
+type NodeAllocationOut = components["schemas"]["NodeAllocationOut"];
+
+function NodeDetailPanel({
+  node,
+  allocations,
+  onMarkedDown,
+}: {
+  node: NodeOut;
+  allocations: NodeAllocationOut[];
+  onMarkedDown: () => void;
+}) {
   const markDown = useMutation({
     mutationFn: async () => {
       const { data, error } = await api.PATCH("/nodes/{node_id}/down", {
@@ -55,6 +65,27 @@ function NodeDetailPanel({ node, onMarkedDown }: { node: NodeOut; onMarkedDown: 
           </div>
         ))}
       </div>
+
+      {allocations.length > 0 && (
+        <div className="space-y-1">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Running jobs</label>
+          {Object.entries(
+            allocations.reduce<Record<number, string[]>>((byJob, a) => {
+              (byJob[a.job_id] ??= []).push(a.resource_type);
+              return byJob;
+            }, {}),
+          ).map(([jobId, resourceTypes]) => (
+            <Link
+              key={jobId}
+              to={`/jobs/${jobId}`}
+              className="flex items-center justify-between rounded-md border px-2 py-1 font-mono text-sm hover:bg-secondary/50"
+            >
+              <span>job {jobId}</span>
+              <span className="text-muted-foreground">{resourceTypes.join(", ")}</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <Button
         variant="destructive"
@@ -104,6 +135,17 @@ export function ClusterDetailPage() {
     queryFn: async () => {
       const { data, error } = await api.GET("/reservations", {
         params: { query: { cluster_id: Number(clusterId) } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const allocationsQuery = useQuery({
+    queryKey: ["clusters", clusterId, "allocations"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/clusters/{cluster_id}/allocations", {
+        params: { path: { cluster_id: Number(clusterId) } },
       });
       if (error) throw error;
       return data;
@@ -199,6 +241,7 @@ export function ClusterDetailPage() {
           {selectedNode ? (
             <NodeDetailPanel
               node={selectedNode}
+              allocations={(allocationsQuery.data ?? []).filter((a) => a.node_id === selectedNode.node_id)}
               onMarkedDown={() => queryClient.invalidateQueries({ queryKey })}
             />
           ) : (

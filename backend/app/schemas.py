@@ -60,12 +60,17 @@ class AllocationNodeOut(OurBaseModel):
 class AllocationOut(BaseOut):
     allocation_id: int
     job_id: int
-    cluster_id: int
     allocation_status: AllocationStatus
     begin_time: datetime
     end_time: datetime | None
     duration: int | None  # minutes; only known once the job stops running
     resource_nodes: list[AllocationNodeOut]
+
+
+class NodeAllocationOut(OurBaseModel):
+    node_id: int
+    job_id: int
+    resource_type: ResourceType
 
 
 class JobListItemOut(OurBaseModel):

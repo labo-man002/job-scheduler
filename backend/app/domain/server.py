@@ -265,6 +265,19 @@ class Server:
             raise ClusterNotFoundError(cluster_id)
         return cluster
 
+    def list_cluster_allocations(self, cluster_id):
+        """Every currently-occupied resource unit in this cluster, and which job
+        occupies it -- the reverse lookup of get_allocation_details (job -> nodes)."""
+        return (
+            self.db.query(models.AllocationNode)
+            .join(models.ResourceNode, models.ResourceNode.resource_node_id == models.AllocationNode.resource_node_id)
+            .join(models.Node, models.Node.node_id == models.ResourceNode.node_id)
+            .join(models.Allocation, models.Allocation.allocation_id == models.AllocationNode.allocation_id)
+            .filter(models.Node.cluster_id == cluster_id)
+            .filter(models.Allocation.allocation_status == AllocationStatus.ALLOCATED)
+            .all()
+        )
+
     def set_node_down(self, node_id):
         """Decommission a node without evicting whatever's currently running
         on it"""

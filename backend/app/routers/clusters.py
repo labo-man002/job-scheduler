@@ -81,3 +81,15 @@ def get_cluster(cluster_id: int, db: DbDep):
         raise HTTPException(status_code=404, detail=f"Cluster {error} not found") from error
 
     return _cluster_detail_out(cluster)
+
+
+@router.get("/{cluster_id}/allocations", response_model=list[schemas.NodeAllocationOut])
+def list_cluster_allocations(cluster_id: int, db: DbDep):
+    return [
+        schemas.NodeAllocationOut(
+            node_id=an.resource_node.node_id,
+            job_id=an.allocation.job_id,
+            resource_type=an.resource_node.resource_type,
+        )
+        for an in Server(db).list_cluster_allocations(cluster_id)
+    ]

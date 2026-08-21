@@ -39,15 +39,16 @@ function renderPage() {
   );
 }
 
-// The page now fetches /clusters/{id}, /institutes, and /reservations concurrently --
-// route by path instead of returning the same fixture for every GET call.
-function mockGet(cluster: typeof CLUSTER, institutes: unknown[] = [], reservations: unknown[] = []) {
+// The page now fetches /clusters/{id}, /institutes, /reservations, and /clusters/{id}/allocations
+// concurrently -- route by path instead of returning the same fixture for every GET call.
+function mockGet(cluster: typeof CLUSTER, institutes: unknown[] = [], reservations: unknown[] = [], allocations: unknown[] = []) {
   vi.mocked(api.GET)
     .mockReset()
     .mockImplementation(((path: string) => {
       if (path === "/clusters/{cluster_id}") return Promise.resolve({ data: cluster, error: undefined, response: new Response(null, { status: 200 }) });
       if (path === "/institutes") return Promise.resolve({ data: institutes, error: undefined, response: new Response(null, { status: 200 }) });
       if (path === "/reservations") return Promise.resolve({ data: reservations, error: undefined, response: new Response(null, { status: 200 }) });
+      if (path === "/clusters/{cluster_id}/allocations") return Promise.resolve({ data: allocations, error: undefined, response: new Response(null, { status: 200 }) });
       throw new Error(`unexpected path ${path}`);
     }) as typeof api.GET);
 }
@@ -117,5 +118,20 @@ describe("ClusterDetailPage", () => {
     await screen.findByText("test-cluster");
 
     expect(await screen.findByText(/reserved by Test Institute/i)).toBeInTheDocument();
+  });
+
+  it("lists the running jobs allocated to a node, grouped by job", async () => {
+    mockGet(CLUSTER, [], [], [
+      { node_id: 10, job_id: 42, resource_type: "CPU" },
+      { node_id: 10, job_id: 42, resource_type: "GPU" },
+    ]);
+
+    renderPage();
+    await screen.findByText("test-cluster");
+    await userEvent.click(screen.getByText("0,0"));
+
+    const jobLink = await screen.findByRole("link", { name: /job 42/i });
+    expect(jobLink).toHaveAttribute("href", "/jobs/42");
+    expect(jobLink.textContent).toMatch(/CPU, GPU/);
   });
 });

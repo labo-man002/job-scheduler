@@ -25,26 +25,11 @@ const EVENTS = [{ event_type: "QUEUED", time: "2026-08-21T10:00:00Z", comment: "
 const ALLOCATION = {
   allocation_id: 5,
   job_id: 42,
-  cluster_id: 7,
   allocation_status: "ALLOCATED",
   begin_time: "2026-08-21T10:05:00Z",
   end_time: null,
   duration: null,
   resource_nodes: [{ resource_node_id: 1, node_id: 100, resource_type: "CPU" }],
-};
-
-const CLUSTER = {
-  cluster_id: 7,
-  cluster_name: "ring-a",
-  topology_type: "RING",
-  dimension: [2],
-  wrap: false,
-  total_capacity: 2,
-  free_capacity: 1,
-  nodes: [
-    { node_id: 100, coordinates: [0], status: "ALLOCATED", resources: [] },
-    { node_id: 101, coordinates: [1], status: "IDLE", resources: [] },
-  ],
 };
 
 function mockGet(job: typeof JOB, allocation: typeof ALLOCATION | null = null) {
@@ -57,7 +42,6 @@ function mockGet(job: typeof JOB, allocation: typeof ALLOCATION | null = null) {
         if (allocation) return Promise.resolve({ data: allocation, error: undefined, response: new Response(null, { status: 200 }) });
         return Promise.resolve({ data: undefined, error: { detail: "not found" }, response: new Response(null, { status: 404 }) });
       }
-      if (path === "/clusters/{cluster_id}") return Promise.resolve({ data: CLUSTER, error: undefined, response: new Response(null, { status: 200 }) });
       throw new Error(`unexpected path ${path}`);
     }) as typeof api.GET);
 }
@@ -122,12 +106,10 @@ describe("JobDetailPage", () => {
     expect(api.DELETE).not.toHaveBeenCalled();
   });
 
-  it("shows the cluster topology with the allocated node marked, once a job has an allocation", async () => {
+  it("shows the allocated resource nodes once a job has an allocation", async () => {
     mockGet({ ...JOB, status: "RUNNING" }, ALLOCATION);
     renderPage();
 
-    expect(await screen.findByText("ring-a (RING) →")).toBeInTheDocument();
-    // The allocated node's tooltip should call out this specific job by id.
-    expect(await screen.findByText(/allocated to job 42/i)).toBeInTheDocument();
+    expect(await screen.findByText("node 100")).toBeInTheDocument();
   });
 });
