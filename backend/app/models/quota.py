@@ -12,6 +12,6 @@ class Quota(Base):
     resource_type = Column(Enum(ResourceType, name="resource_type"), nullable=False)
     institute_id = Column(Integer, ForeignKey("institute.institute_id"), nullable=False)
     limit = Column(Integer, nullable=False)
-    period = Column(DateTime, nullable=False)
+    period = Column(DateTime(timezone=True), nullable=False)
 
     institute = relationship("Institute", back_populates="quotas")

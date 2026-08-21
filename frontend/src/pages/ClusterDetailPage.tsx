@@ -90,6 +90,38 @@ export function ClusterDetailPage() {
     },
   });
 
+  const institutesQuery = useQuery({
+    queryKey: ["institutes"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/institutes");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const reservationsQuery = useQuery({
+    queryKey: ["reservations", "cluster", clusterId],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/reservations", {
+        params: { query: { cluster_id: Number(clusterId) } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const instituteNameById = new Map((institutesQuery.data ?? []).map((i) => [i.institute_id, i.institute_name]));
+  const reservationInfoByNodeId = new Map<number, string>();
+  for (const reservation of reservationsQuery.data ?? []) {
+    const label = `reserved by ${instituteNameById.get(reservation.institute_id) ?? `institute ${reservation.institute_id}`} until ${new Date(
+      reservation.end_period,
+    ).toLocaleString()}`;
+    for (const nodeId of reservation.node_ids) {
+      const existing = reservationInfoByNodeId.get(nodeId);
+      reservationInfoByNodeId.set(nodeId, existing ? `${existing}; ${label}` : label);
+    }
+  }
+
   if (isPending)
     return (
       <div className="p-6 space-y-4">
@@ -145,6 +177,7 @@ export function ClusterDetailPage() {
                 nodes={cluster.nodes}
                 selectedNodeId={selectedNodeId}
                 onSelectNode={(node) => setSelectedNodeId(node.node_id)}
+                reservationInfoByNodeId={reservationInfoByNodeId}
               />
             </Suspense>
           ) : (
@@ -155,6 +188,7 @@ export function ClusterDetailPage() {
                 nodes={cluster.nodes}
                 selectedNodeId={selectedNodeId}
                 onSelectNode={(node) => setSelectedNodeId(node?.node_id ?? null)}
+                reservationInfoByNodeId={reservationInfoByNodeId}
               />
             </Card>
           )}

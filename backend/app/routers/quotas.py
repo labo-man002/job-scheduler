@@ -33,6 +33,11 @@ def create_quota(payload: schemas.QuotaCreate, db: DbDep):
     )
 
 
+@router.get("", response_model=list[schemas.QuotaListItemOut])
+def list_quotas(db: DbDep, institute_id: int | None = None):
+    return Server(db).list_quotas(institute_id=institute_id)
+
+
 @router.delete("/{quota_id}", response_model=schemas.BaseOut)
 def delete_quota(quota_id: int, db: DbDep):
     server = Server(db)

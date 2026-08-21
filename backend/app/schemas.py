@@ -133,6 +133,14 @@ class QuotaOut(BaseOut):
     period: datetime
 
 
+class QuotaListItemOut(OurBaseModel):
+    id: int
+    institute_id: int
+    resource_type: ResourceType
+    limit: int
+    period: datetime
+
+
 class ReservationCreate(OurBaseModel):
     institute_id: int
     cluster_id: int
@@ -149,6 +157,16 @@ class ReservationCreate(OurBaseModel):
 
 
 class ReservationOut(BaseOut):
+    id: int
+    institute_id: int
+    cluster_id: int
+    start_period: datetime
+    end_period: datetime
+    reason: str
+    node_ids: list[int]
+
+
+class ReservationListItemOut(OurBaseModel):
     id: int
     institute_id: int
     cluster_id: int

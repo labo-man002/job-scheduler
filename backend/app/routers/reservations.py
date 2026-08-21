@@ -58,6 +58,27 @@ def create_reservation(payload: schemas.ReservationCreate, db: DbDep):
     )
 
 
+def _reservation_list_item(reservation):
+    # Reservation has no cluster_id column of its own -- every node in it belongs to
+    # the same cluster (enforced at creation), so read it off the first one.
+    node_ids = [nr.node_id for nr in reservation.node_reservations]
+    cluster_id = reservation.node_reservations[0].node.cluster_id
+    return schemas.ReservationListItemOut(
+        id=reservation.id,
+        institute_id=reservation.institute_id,
+        cluster_id=cluster_id,
+        start_period=reservation.start_period,
+        end_period=reservation.end_period,
+        reason=reservation.reason,
+        node_ids=node_ids,
+    )
+
+
+@router.get("", response_model=list[schemas.ReservationListItemOut])
+def list_reservations(db: DbDep, institute_id: int | None = None, cluster_id: int | None = None):
+    return [_reservation_list_item(r) for r in Server(db).list_reservations(institute_id=institute_id, cluster_id=cluster_id)]
+
+
 @router.delete("/{reservation_id}", response_model=schemas.BaseOut)
 def cancel_reservation(reservation_id: int, db: DbDep):
     server = Server(db)

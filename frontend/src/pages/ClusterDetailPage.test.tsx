@@ -39,10 +39,23 @@ function renderPage() {
   );
 }
 
+// The page now fetches /clusters/{id}, /institutes, and /reservations concurrently --
+// route by path instead of returning the same fixture for every GET call.
+function mockGet(cluster: typeof CLUSTER, institutes: unknown[] = [], reservations: unknown[] = []) {
+  vi.mocked(api.GET)
+    .mockReset()
+    .mockImplementation(((path: string) => {
+      if (path === "/clusters/{cluster_id}") return Promise.resolve({ data: cluster, error: undefined, response: new Response(null, { status: 200 }) });
+      if (path === "/institutes") return Promise.resolve({ data: institutes, error: undefined, response: new Response(null, { status: 200 }) });
+      if (path === "/reservations") return Promise.resolve({ data: reservations, error: undefined, response: new Response(null, { status: 200 }) });
+      throw new Error(`unexpected path ${path}`);
+    }) as typeof api.GET);
+}
+
 describe("ClusterDetailPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks(); // clears the window.confirm spy (and its call count) left over from the previous test
-    vi.mocked(api.GET).mockReset().mockResolvedValue({ data: CLUSTER, error: undefined, response: new Response() } as never);
+    mockGet(CLUSTER);
     vi.mocked(api.PATCH).mockReset();
   });
 
@@ -84,16 +97,25 @@ describe("ClusterDetailPage", () => {
   });
 
   it("disables the button for a node that's already down", async () => {
-    vi.mocked(api.GET).mockResolvedValue({
-      data: { ...CLUSTER, nodes: [{ ...CLUSTER.nodes[0], status: "DOWN" }, ...CLUSTER.nodes.slice(1)] },
-      error: undefined,
-      response: new Response(),
-    } as never);
+    mockGet({ ...CLUSTER, nodes: [{ ...CLUSTER.nodes[0], status: "DOWN" }, ...CLUSTER.nodes.slice(1)] });
 
     renderPage();
     await screen.findByText("test-cluster");
     await userEvent.click(screen.getByText("0,0"));
 
     expect(await screen.findByRole("button", { name: /already down/i })).toBeDisabled();
+  });
+
+  it("marks a reserved node's tooltip with the reservation info", async () => {
+    mockGet(
+      CLUSTER,
+      [{ institute_id: 5, institute_name: "Test Institute" }],
+      [{ id: 1, institute_id: 5, cluster_id: 1, start_period: "2026-09-01T00:00:00Z", end_period: "2026-09-02T00:00:00Z", reason: "maintenance", node_ids: [10] }],
+    );
+
+    renderPage();
+    await screen.findByText("test-cluster");
+
+    expect(await screen.findByText(/reserved by Test Institute/i)).toBeInTheDocument();
   });
 });

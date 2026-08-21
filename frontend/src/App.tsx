@@ -1,11 +1,16 @@
-import { NavLink, Route, Routes } from "react-router-dom";
-import { Network, Boxes, ListTodo, Moon, Sun } from "lucide-react";
+import { Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { Network, Boxes, ListTodo, Moon, ShieldUser, Sun } from "lucide-react";
 import { Toaster } from "sonner";
 import { ClustersPage } from "@/pages/ClustersPage";
 import { ClusterDetailPage } from "@/pages/ClusterDetailPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { JobSubmitPage } from "@/pages/JobSubmitPage";
 import { JobDetailPage } from "@/pages/JobDetailPage";
+import { AdminLayout } from "@/pages/admin/AdminLayout";
+import { AdminInstitutesPage } from "@/pages/admin/AdminInstitutesPage";
+import { AdminClientsPage } from "@/pages/admin/AdminClientsPage";
+import { AdminQuotasPage } from "@/pages/admin/AdminQuotasPage";
+import { AdminReservationsPage } from "@/pages/admin/AdminReservationsPage";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/lib/useTheme";
 
@@ -30,7 +35,10 @@ function Nav() {
         <ListTodo className="size-4" />
         Jobs
       </NavLink>
-      {/* Admin (#67) lands here once that ticket is built. */}
+      <NavLink to="/admin" className={linkClass}>
+        <ShieldUser className="size-4" />
+        Admin
+      </NavLink>
       <Button
         variant="ghost"
         size="icon-sm"
@@ -56,6 +64,13 @@ function App() {
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/jobs/new" element={<JobSubmitPage />} />
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="institutes" replace />} />
+          <Route path="institutes" element={<AdminInstitutesPage />} />
+          <Route path="clients" element={<AdminClientsPage />} />
+          <Route path="quotas" element={<AdminQuotasPage />} />
+          <Route path="reservations" element={<AdminReservationsPage />} />
+        </Route>
       </Routes>
     </>
   );
