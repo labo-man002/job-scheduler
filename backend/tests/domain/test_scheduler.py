@@ -79,7 +79,7 @@ def test_attempt_placement():
 
     nodes = [make_node(i, [i]) for i in range(8)]
     cluster = make_cluster(1, dimension=[8], wrap=True)
-
+    
     topology = Topology(cluster)
     algorithm = PackAlgorithm()
 
@@ -88,6 +88,7 @@ def test_attempt_placement():
 
     result = scheduler.attempt_placement(job)
 
+    
 
     assert result[0].resource_status == ResourceStatus.ALLOCATED
 
@@ -105,8 +106,11 @@ def test_release_node_marks_resources_unavailable_when_node_down():
 
     nodes[7].status = NodeStatus.DOWN
 
-    scheduler.release_node(nodes[7])
+    result =scheduler.release_node(nodes[7])
 
+    print(result)
+
+    
     for resource in nodes[7].resources:
         assert resource.resource_status == ResourceStatus.UNAVAILABLE
 

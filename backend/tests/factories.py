@@ -1,5 +1,6 @@
 from app import models
 from app.enums import NodeStatus, ResourceStatus, ResourceType, TopologyType
+from app.enums.priority import Priority
 
 
 def make_node(node_id, coordinates, resource_count=4, resource_type=ResourceType.CPU, status=NodeStatus.IDLE):
@@ -17,7 +18,7 @@ def make_node(node_id, coordinates, resource_count=4, resource_type=ResourceType
     return node
 
 
-def make_job(job_id,priority  , resource_type=ResourceType.CPU, amount=1):
+def make_job(job_id,priority =Priority.LOW  , resource_type=ResourceType.CPU, amount=1):
     job = models.Job(job_id=job_id,priority = priority , duration=10, client_id=1)
     job.requirements = [
         models.ResourceRequirement(
