@@ -1,6 +1,7 @@
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { Network, Boxes, ListTodo, Moon, ShieldUser, Sun } from "lucide-react";
+import { Network, Boxes, LayoutDashboard, ListTodo, Moon, ShieldUser, Sun } from "lucide-react";
 import { Toaster } from "sonner";
+import { DashboardPage } from "@/pages/DashboardPage";
 import { ClustersPage } from "@/pages/ClustersPage";
 import { ClusterDetailPage } from "@/pages/ClusterDetailPage";
 import { JobsPage } from "@/pages/JobsPage";
@@ -27,6 +28,10 @@ function Nav() {
         <Network className="size-4 text-primary" />
         <span className="text-sm font-semibold tracking-tight">Job Scheduler</span>
       </div>
+      <NavLink to="/" end className={linkClass}>
+        <LayoutDashboard className="size-4" />
+        Dashboard
+      </NavLink>
       <NavLink to="/clusters" className={linkClass}>
         <Boxes className="size-4" />
         Clusters
@@ -58,7 +63,7 @@ function App() {
       <Toaster richColors position="bottom-right" />
       <Nav />
       <Routes>
-        <Route path="/" element={<ClustersPage />} />
+        <Route path="/" element={<DashboardPage />} />
         <Route path="/clusters" element={<ClustersPage />} />
         <Route path="/clusters/:clusterId" element={<ClusterDetailPage />} />
         <Route path="/jobs" element={<JobsPage />} />
