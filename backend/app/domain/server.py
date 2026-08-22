@@ -330,6 +330,12 @@ class Server:
         job = self._get_job_or_raise(job_id)
         return sorted(job.events, key=lambda event: event.id)
 
+    def list_recent_events(self, limit=20):
+        # Order by id, not just time -- two events from the same submit_job call (e.g.
+        # QUEUED immediately followed by RUNNING placement) can share an identical
+        # timestamp, and id reflects true insertion order as a tiebreaker.
+        return self.db.query(models.JobEvent).order_by(models.JobEvent.id.desc()).limit(limit).all()
+
     def submit_job(self, client_id, requirements, priority, duration):
         """requirements: list of (ResourceType, amount). `duration` is the
         client's estimate, not a commitment."""
