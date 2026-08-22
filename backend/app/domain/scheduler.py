@@ -61,6 +61,13 @@ class Scheduler:
         self._jobs.remove(job)
         return job
 
+    def peek_order(self):
+        """Non-destructive view of the order dequeue() would produce. Python's sort
+        is stable and ``_jobs`` is already in insertion order, so sorting by key
+        alone (no explicit sequence number needed) reproduces the same tiebreak the
+        real priority queue uses."""
+        return sorted(self._jobs, key=self.sort_strategy.key)
+
 
     def attempt_placement(self, job):
         """Ask the configured placer to find resources for a selected job."""

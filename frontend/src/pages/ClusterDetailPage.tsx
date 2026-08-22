@@ -22,6 +22,12 @@ type NodeOut = components["schemas"]["NodeOut"];
 
 type NodeAllocationOut = components["schemas"]["NodeAllocationOut"];
 
+function fragmentationColor(fragmentation: number) {
+  if (fragmentation < 0.3) return "#16a34a";
+  if (fragmentation < 0.6) return "#d97706";
+  return "#dc2626";
+}
+
 function NodeDetailPanel({
   node,
   allocations,
@@ -152,6 +158,28 @@ export function ClusterDetailPage() {
     },
   });
 
+  const fragmentationQuery = useQuery({
+    queryKey: ["clusters", clusterId, "fragmentation"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/clusters/{cluster_id}/fragmentation", {
+        params: { path: { cluster_id: Number(clusterId) } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const queueQuery = useQuery({
+    queryKey: ["clusters", clusterId, "queue"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/clusters/{cluster_id}/queue", {
+        params: { path: { cluster_id: Number(clusterId) } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const instituteNameById = new Map((institutesQuery.data ?? []).map((i) => [i.institute_id, i.institute_name]));
   const reservationInfoByNodeId = new Map<number, string>();
   for (const reservation of reservationsQuery.data ?? []) {
@@ -189,7 +217,17 @@ export function ClusterDetailPage() {
           <ArrowLeft className="size-3.5" />
           Clusters
         </Link>
-        <h1 className="text-xl font-semibold tracking-tight mt-1">{cluster.cluster_name}</h1>
+        <div className="flex items-center gap-2 mt-1">
+          <h1 className="text-xl font-semibold tracking-tight">{cluster.cluster_name}</h1>
+          {fragmentationQuery.data && (
+            <span title="Share of idle capacity that's NOT in one contiguous block -- lower is better for Pack placement">
+              <StatusBadge
+                fill={fragmentationColor(fragmentationQuery.data.fragmentation)}
+                label={`${Math.round(fragmentationQuery.data.fragmentation * 100)}% fragmented`}
+              />
+            </span>
+          )}
+        </div>
         <p className="font-mono text-sm text-muted-foreground">
           {cluster.topology_type} · dim [{cluster.dimension.join(",")}] · wrap={String(cluster.wrap)} ·{" "}
           {cluster.free_capacity}/{cluster.total_capacity} free
@@ -249,6 +287,29 @@ export function ClusterDetailPage() {
           )}
         </div>
       </div>
+
+      {queueQuery.data && queueQuery.data.length > 0 && (
+        <Card className="p-4">
+          <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Queue -- real drain order, priority first
+          </h2>
+          <ol className="space-y-1.5">
+            {queueQuery.data.map((job) => (
+              <li key={job.job_id}>
+                <Link
+                  to={`/jobs/${job.job_id}`}
+                  className="flex items-center gap-3 rounded-md border px-3 py-1.5 font-mono text-sm hover:bg-secondary/50"
+                >
+                  <span className="text-muted-foreground">#{job.queue_position}</span>
+                  <span>job {job.job_id}</span>
+                  <span className="text-muted-foreground">{job.priority}</span>
+                  <span className="ml-auto text-muted-foreground">{job.duration}min</span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
     </div>
   );
 }

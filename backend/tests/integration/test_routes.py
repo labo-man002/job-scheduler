@@ -288,6 +288,42 @@ def test_get_unknown_cluster_returns_404(api_client, db):
     assert resp.status_code == 404
 
 
+def test_get_cluster_fragmentation(api_client, db, seeded_cluster):
+    resp = api_client.get(f"/clusters/{seeded_cluster['cluster_id']}/fragmentation")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"fragmentation": 0.0, "largest_free_region": 4, "total_free_nodes": 4}
+
+
+def test_get_cluster_fragmentation_unknown_cluster_returns_404(api_client, db):
+    resp = api_client.get("/clusters/999999/fragmentation")
+    assert resp.status_code == 404
+
+
+def test_list_cluster_queue_orders_by_priority(api_client, db, seeded_cluster):
+    filler_resp = api_client.post("/jobs", json={
+        "client_id": seeded_cluster["client_id"], "priority": "NORMAL", "duration": 10,
+        "requirements": [{"resource_type": "CPU", "amount": 8}],
+    })
+    assert filler_resp.json()["status"] == "RUNNING"
+
+    low_resp = api_client.post("/jobs", json={
+        "client_id": seeded_cluster["client_id"], "priority": "LOW", "duration": 10,
+        "requirements": [{"resource_type": "CPU", "amount": 1}],
+    })
+    urgent_resp = api_client.post("/jobs", json={
+        "client_id": seeded_cluster["client_id"], "priority": "URGENT", "duration": 10,
+        "requirements": [{"resource_type": "CPU", "amount": 1}],
+    })
+    assert low_resp.json()["status"] == "QUEUED"
+    assert urgent_resp.json()["status"] == "QUEUED"
+
+    resp = api_client.get(f"/clusters/{seeded_cluster['cluster_id']}/queue")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert [job["job_id"] for job in body] == [urgent_resp.json()["job_id"], low_resp.json()["job_id"]]
+    assert [job["queue_position"] for job in body] == [1, 2]
+
+
 def test_create_quota_returns_201(api_client, db, seeded_cluster):
     resp = api_client.post("/quotas", json={
         "institute_id": seeded_cluster["institute_id"], "resource_type": "CPU", "limit": 4,

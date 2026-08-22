@@ -93,3 +93,32 @@ def list_cluster_allocations(cluster_id: int, db: DbDep):
         )
         for an in Server(db).list_cluster_allocations(cluster_id)
     ]
+
+
+@router.get("/{cluster_id}/fragmentation", response_model=schemas.ClusterFragmentationOut)
+def get_cluster_fragmentation(cluster_id: int, db: DbDep):
+    try:
+        fragmentation, largest_free_region, total_free_nodes = Server(db).cluster_fragmentation(cluster_id)
+    except ClusterNotFoundError as error:
+        raise HTTPException(status_code=404, detail=f"Cluster {error} not found") from error
+
+    return schemas.ClusterFragmentationOut(
+        fragmentation=fragmentation,
+        largest_free_region=largest_free_region,
+        total_free_nodes=total_free_nodes,
+    )
+
+
+@router.get("/{cluster_id}/queue", response_model=list[schemas.QueuedJobOut])
+def list_cluster_queue(cluster_id: int, db: DbDep):
+    return [
+        schemas.QueuedJobOut(
+            job_id=job.job_id,
+            client_id=job.client_id,
+            priority=job.priority,
+            duration=job.duration,
+            submitted_at=job.submitted_at,
+            queue_position=position,
+        )
+        for position, job in enumerate(Server(db).list_queue(cluster_id), start=1)
+    ]

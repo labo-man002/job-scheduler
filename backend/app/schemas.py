@@ -232,3 +232,18 @@ class ClusterOut(OurBaseModel):
 
 class ClusterDetailOut(ClusterOut):
     nodes: list[NodeOut]
+
+
+class ClusterFragmentationOut(OurBaseModel):
+    fragmentation: float
+    largest_free_region: int
+    total_free_nodes: int
+
+
+class QueuedJobOut(OurBaseModel):
+    job_id: int
+    client_id: int
+    priority: Priority
+    duration: int
+    submitted_at: datetime
+    queue_position: int

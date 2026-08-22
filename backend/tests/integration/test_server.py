@@ -345,6 +345,71 @@ def test_cancelling_a_queued_job_does_not_block_jobs_behind_it(db, seeded_cluste
     assert behind_it.status == JobStatus.RUNNING
 
 
+def test_cluster_fragmentation_is_zero_when_idle_nodes_are_contiguous(db, seeded_cluster):
+    server = Server(db)
+    assert server.cluster_fragmentation(seeded_cluster["cluster_id"]) == (0.0, 4, 4)
+
+
+def test_cluster_fragmentation_reflects_scattered_idle_nodes(db, seeded_cluster):
+    # Ring of 4, wrap=True: 0-1-2-3-0. Occupying 0 and 2 splits the remaining
+    # idle nodes (1 and 3) into two disconnected single-node pockets.
+    nodes = seeded_cluster["nodes"]
+    nodes[0].status = NodeStatus.ALLOCATED
+    nodes[2].status = NodeStatus.ALLOCATED
+    db.flush()
+
+    server = Server(db)
+    assert server.cluster_fragmentation(seeded_cluster["cluster_id"]) == (0.5, 1, 2)
+
+
+def test_cluster_fragmentation_is_zero_with_no_idle_nodes(db, seeded_cluster):
+    for node in seeded_cluster["nodes"]:
+        node.status = NodeStatus.ALLOCATED
+    db.flush()
+
+    server = Server(db)
+    assert server.cluster_fragmentation(seeded_cluster["cluster_id"]) == (0.0, 0, 0)
+
+
+def test_cluster_fragmentation_unknown_cluster_raises(db):
+    server = Server(db)
+    with pytest.raises(ClusterNotFoundError):
+        server.cluster_fragmentation(999999)
+
+
+def test_list_queue_returns_jobs_in_priority_order(db, seeded_cluster):
+    server = Server(db)
+    filler = server.submit_job(
+        client_id=seeded_cluster["client_id"], requirements=[(ResourceType.CPU, 8)], priority=Priority.NORMAL, duration=10
+    )
+    db.flush()
+    assert filler.status == JobStatus.RUNNING
+
+    low = server.submit_job(client_id=seeded_cluster["client_id"], requirements=[(ResourceType.CPU, 1)], priority=Priority.LOW, duration=10)
+    urgent = server.submit_job(client_id=seeded_cluster["client_id"], requirements=[(ResourceType.CPU, 1)], priority=Priority.URGENT, duration=10)
+    db.flush()
+    assert low.status == JobStatus.QUEUED
+    assert urgent.status == JobStatus.QUEUED
+
+    queue = server.list_queue(seeded_cluster["cluster_id"])
+    assert [job.job_id for job in queue] == [urgent.job_id, low.job_id]
+
+
+def test_list_queue_excludes_a_job_cancelled_while_queued(db, seeded_cluster):
+    server = Server(db)
+    server.submit_job(client_id=seeded_cluster["client_id"], requirements=[(ResourceType.CPU, 8)], priority=Priority.NORMAL, duration=10)
+    db.flush()
+
+    job = server.submit_job(client_id=seeded_cluster["client_id"], requirements=[(ResourceType.CPU, 1)], priority=Priority.NORMAL, duration=10)
+    db.flush()
+    assert job.status == JobStatus.QUEUED
+
+    server.cancel_job(job.job_id)
+    db.flush()
+
+    assert server.list_queue(seeded_cluster["cluster_id"]) == []
+
+
 def test_jobs_route_to_best_fit_cluster_and_dont_block_each_other(db):
     _, client = create_institute_and_client(db)
     small_cluster, _ = create_cluster_with_nodes(db, node_count=2, resources_per_node=1, cluster_name="small")  # capacity 2

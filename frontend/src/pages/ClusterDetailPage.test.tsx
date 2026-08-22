@@ -39,9 +39,19 @@ function renderPage() {
   );
 }
 
-// The page now fetches /clusters/{id}, /institutes, /reservations, and /clusters/{id}/allocations
-// concurrently -- route by path instead of returning the same fixture for every GET call.
-function mockGet(cluster: typeof CLUSTER, institutes: unknown[] = [], reservations: unknown[] = [], allocations: unknown[] = []) {
+const FRAGMENTATION = { fragmentation: 0, largest_free_region: 0, total_free_nodes: 0 };
+
+// The page now fetches /clusters/{id}, /institutes, /reservations, /clusters/{id}/allocations,
+// /clusters/{id}/fragmentation, and /clusters/{id}/queue concurrently -- route by path instead
+// of returning the same fixture for every GET call.
+function mockGet(
+  cluster: typeof CLUSTER,
+  institutes: unknown[] = [],
+  reservations: unknown[] = [],
+  allocations: unknown[] = [],
+  fragmentation: unknown = FRAGMENTATION,
+  queue: unknown[] = [],
+) {
   vi.mocked(api.GET)
     .mockReset()
     .mockImplementation(((path: string) => {
@@ -49,6 +59,8 @@ function mockGet(cluster: typeof CLUSTER, institutes: unknown[] = [], reservatio
       if (path === "/institutes") return Promise.resolve({ data: institutes, error: undefined, response: new Response(null, { status: 200 }) });
       if (path === "/reservations") return Promise.resolve({ data: reservations, error: undefined, response: new Response(null, { status: 200 }) });
       if (path === "/clusters/{cluster_id}/allocations") return Promise.resolve({ data: allocations, error: undefined, response: new Response(null, { status: 200 }) });
+      if (path === "/clusters/{cluster_id}/fragmentation") return Promise.resolve({ data: fragmentation, error: undefined, response: new Response(null, { status: 200 }) });
+      if (path === "/clusters/{cluster_id}/queue") return Promise.resolve({ data: queue, error: undefined, response: new Response(null, { status: 200 }) });
       throw new Error(`unexpected path ${path}`);
     }) as typeof api.GET);
 }
@@ -133,5 +145,32 @@ describe("ClusterDetailPage", () => {
     const jobLink = await screen.findByRole("link", { name: /job 42/i });
     expect(jobLink).toHaveAttribute("href", "/jobs/42");
     expect(jobLink.textContent).toMatch(/CPU, GPU/);
+  });
+
+  it("shows the cluster's fragmentation badge", async () => {
+    mockGet(CLUSTER, [], [], [], { fragmentation: 0.5, largest_free_region: 1, total_free_nodes: 2 });
+
+    renderPage();
+    expect(await screen.findByText("50% fragmented")).toBeInTheDocument();
+  });
+
+  it("lists queued jobs in drain order with a link to each job", async () => {
+    mockGet(CLUSTER, [], [], [], FRAGMENTATION, [
+      { job_id: 7, client_id: 1, priority: "URGENT", duration: 15, submitted_at: "2026-08-22T00:00:00Z", queue_position: 1 },
+      { job_id: 3, client_id: 1, priority: "LOW", duration: 30, submitted_at: "2026-08-22T00:00:00Z", queue_position: 2 },
+    ]);
+
+    renderPage();
+    const firstLink = await screen.findByRole("link", { name: /job 7/i });
+    expect(firstLink).toHaveAttribute("href", "/jobs/7");
+    expect(firstLink.textContent).toMatch(/#1/);
+    expect(await screen.findByRole("link", { name: /job 3/i })).toHaveAttribute("href", "/jobs/3");
+  });
+
+  it("shows no queue section when nothing is queued", async () => {
+    mockGet(CLUSTER);
+    renderPage();
+    await screen.findByText("test-cluster");
+    expect(screen.queryByText(/real drain order/i)).not.toBeInTheDocument();
   });
 });

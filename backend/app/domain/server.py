@@ -278,6 +278,58 @@ class Server:
             .all()
         )
 
+    def cluster_fragmentation(self, cluster_id):
+        """How scattered a cluster's fully-idle nodes are, as PackAlgorithm sees them:
+        it treats ALLOCATED *and* MIXED nodes as occupied anchors, so only IDLE nodes
+        are ever free to consolidate. 0.0 means every idle node forms one contiguous
+        block (ideal for Pack); closer to 1.0 means idle capacity is scattered across
+        many disconnected pockets, which is what actually limits Pack's ability to keep
+        future placements contiguous."""
+        cluster = self.get_cluster(cluster_id)
+        idle_nodes = [n for n in cluster.nodes if n.status == NodeStatus.IDLE]
+        if not idle_nodes:
+            return 0.0, 0, 0
+
+        view = Topology(cluster).build_view(cluster.nodes)
+        idle_ids = {n.node_id for n in idle_nodes}
+        seen = set()
+        largest_region = 0
+        for start in idle_nodes:
+            if start.node_id in seen:
+                continue
+            seen.add(start.node_id)
+            region_size = 1
+            stack = [start]
+            while stack:
+                current = stack.pop()
+                for neighbor in view.neighbors(current):
+                    if neighbor.node_id in idle_ids and neighbor.node_id not in seen:
+                        seen.add(neighbor.node_id)
+                        region_size += 1
+                        stack.append(neighbor)
+            largest_region = max(largest_region, region_size)
+
+        fragmentation = 1 - (largest_region / len(idle_nodes))
+        return fragmentation, largest_region, len(idle_nodes)
+
+    def list_queue(self, cluster_id):
+        """The scheduler's actual current drain order for this cluster, without
+        mutating it -- lets the UI show real priority-queue position instead of
+        just filtering jobs by status=QUEUED, which says nothing about order.
+        Filters to jobs still genuinely QUEUED in the DB, since the in-memory
+        queue only lazily discards stale entries on dequeue (see this module's
+        docstring)."""
+        scheduler = self._get_scheduler(cluster_id)
+        job_ids = [pending.job_id for pending in scheduler.peek_order()]
+        still_queued = {
+            job.job_id: job
+            for job in self.db.query(models.Job)
+            .filter(models.Job.job_id.in_(job_ids))
+            .filter_by(status=JobStatus.QUEUED)
+            .all()
+        }
+        return [still_queued[job_id] for job_id in job_ids if job_id in still_queued]
+
     def set_node_down(self, node_id):
         """Decommission a node without evicting whatever's currently running
         on it"""
