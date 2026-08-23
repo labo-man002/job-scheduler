@@ -133,17 +133,37 @@
     }
 }
 
+/* opacity/transform only (not box-shadow) so this stays compositor-only --
+   list views can have many of these animating simultaneously, and box-shadow
+   is a paint-triggering property that would repaint every pulsing row on every
+   frame. */
+.status-pulse {
+  position: relative;
+}
+
+.status-pulse::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: var(--pulse-color, currentColor);
+  pointer-events: none;
+}
+
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 0 0 var(--pulse-color, currentColor);
+    opacity: 0.5;
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 4px 1.5px var(--pulse-color, currentColor);
+    opacity: 0;
+    transform: scale(1.8);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .status-pulse {
+  .status-pulse::before {
     animation: pulse-glow 2s ease-in-out infinite;
   }
 }
