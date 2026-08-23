@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema.d.ts";
 import { JOB_STATUS_COLOR } from "@/lib/jobStatus";
+import { formatApiError } from "@/lib/apiError";
 
 type JobStatus = components["schemas"]["JobStatus"];
 
@@ -69,7 +70,7 @@ export function JobsPage() {
       </div>
 
       {jobsQuery.isPending && <p className="text-muted-foreground">Loading jobs…</p>}
-      {jobsQuery.isError && <p className="text-destructive">Failed to load jobs: {String(jobsQuery.error)}</p>}
+      {jobsQuery.isError && <p className="text-destructive">Failed to load jobs: {formatApiError(jobsQuery.error)}</p>}
       {jobsQuery.data && jobsQuery.data.length === 0 && <p className="text-muted-foreground">No jobs match these filters.</p>}
 
       {jobsQuery.data && jobsQuery.data.length > 0 && (

@@ -51,7 +51,7 @@ export function JobDetailPage() {
   });
 
   if (jobQuery.isPending) return <p className="p-6 text-muted-foreground">Loading job…</p>;
-  if (jobQuery.isError) return <p className="p-6 text-destructive">Failed to load job: {String(jobQuery.error)}</p>;
+  if (jobQuery.isError) return <p className="p-6 text-destructive">Failed to load job: {formatApiError(jobQuery.error)}</p>;
 
   const job = jobQuery.data;
   const color = JOB_STATUS_COLOR[job.status];
@@ -105,7 +105,7 @@ export function JobDetailPage() {
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Allocation</h2>
         {allocationQuery.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
-        {allocationQuery.isError && <p className="text-sm text-destructive">Failed to load allocation: {String(allocationQuery.error)}</p>}
+        {allocationQuery.isError && <p className="text-sm text-destructive">Failed to load allocation: {formatApiError(allocationQuery.error)}</p>}
         {allocationQuery.data === null && <p className="text-sm text-muted-foreground">No allocation yet.</p>}
         {allocationQuery.data && (
           <div className="space-y-1 font-mono text-sm">
@@ -126,7 +126,7 @@ export function JobDetailPage() {
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Event history</h2>
         {eventsQuery.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
-        {eventsQuery.isError && <p className="text-sm text-destructive">Failed to load events: {String(eventsQuery.error)}</p>}
+        {eventsQuery.isError && <p className="text-sm text-destructive">Failed to load events: {formatApiError(eventsQuery.error)}</p>}
         {eventsQuery.data && (
           <ol className="space-y-1">
             {eventsQuery.data.map((event, i) => (
