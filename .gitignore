@@ -15,6 +15,9 @@ frontend/src/api/schema.d.ts
 # Env / local
 .env
 .DS_Store
+
+# Runtime logs shipped to Loki via Promtail (see docker-compose.yml)
+backend/logs/
 CLAUDE.md
 STRATEGY.md
 

@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: job-scheduler-backend
+    static_configs:
+      # The backend runs on the host (bare uvicorn, not containerized) --
+      # host.docker.internal resolves back to it from inside this container.
+      - targets: ["host.docker.internal:8000"]

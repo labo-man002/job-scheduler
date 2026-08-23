@@ -12,6 +12,8 @@ Mako==1.4.1
 MarkupSafe==3.0.3
 psycopg2-binary==2.9.12
 pydantic==2.13.4
+prometheus-client==0.26.0
+prometheus-fastapi-instrumentator==8.1.0
 pydantic-settings==2.14.2
 pydantic_core==2.46.4
 pytest==9.1.1

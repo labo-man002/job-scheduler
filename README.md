@@ -32,6 +32,16 @@ The backend must be running (see above) for `generate:api` and for the app to ac
 
 Frontend tests: `pnpm --filter frontend test`.
 
+## Observability
+
+The backend exposes Prometheus-format metrics at `/metrics` (HTTP request stats, plus custom gauges -- cluster utilization, fragmentation, queue depth, jobs by status) and writes structured JSON logs to `backend/logs/app.log`. Both are picked up by a Prometheus + Loki + Grafana stack:
+
+```bash
+docker compose up -d
+```
+
+Grafana: `http://localhost:3001` (anonymous access, Admin role) with a provisioned "Job Scheduler" dashboard. Prometheus: `http://localhost:9090`. The backend itself still runs on the host as above -- `docker-compose.yml` only runs the observability containers, which reach it via `host.docker.internal`.
+
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md) — class diagram and how the pieces (`Client`, `Server`, `Scheduler`, `Placer`, `Topology`, `Allocation`, ...) fit together.
