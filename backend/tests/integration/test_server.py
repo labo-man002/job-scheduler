@@ -31,7 +31,7 @@ from app.enums import (
     TopologyType,
 )
 
-from .db_factories import create_cluster_with_nodes, create_institute_and_client
+from .db_factories import IMPOSSIBLY_LARGE_AMOUNT, create_cluster_with_nodes, create_institute_and_client
 
 
 @pytest.fixture
@@ -134,11 +134,7 @@ def test_submit_job_rejects_job_too_large_for_any_cluster(db, seeded_cluster):
     with pytest.raises(JobTooLargeError):
         server.submit_job(
             client_id=seeded_cluster["client_id"],
-            # Deliberately absurd, not just "bigger than this fixture's 8-unit cluster" --
-            # this must stay too large even against real demo data seeded into the same dev
-            # DB (e.g. via scripts/seed_db.py), since _best_fit_cluster scans every cluster
-            # in the database, not just this test's own fixture.
-            requirements=[(ResourceType.CPU, 10_000_000_000)],
+            requirements=[(ResourceType.CPU, IMPOSSIBLY_LARGE_AMOUNT)],
             priority=Priority.NORMAL,
             duration=10,
         )
