@@ -143,12 +143,25 @@ def main():
             db.query(models.ResourceRequirement).delete()
             db.query(models.Job).delete()
             db.query(models.Client).delete()
+            # Quota/Reservation/ResourceUsage reference Institute with no ON DELETE
+            # CASCADE, and bulk Query.delete() bypasses ORM-level cascade rules --
+            # delete these dependents first or the Institute delete below raises a
+            # foreign-key IntegrityError as soon as any quota/reservation has ever
+            # been created against the demo institute.
+            db.query(models.NodeReservation).delete()
+            db.query(models.Reservation).delete()
+            db.query(models.Quota).delete()
+            db.query(models.ResourceUsage).delete()
             db.query(models.Institute).delete()
             db.commit()
 
         existing = db.query(models.Cluster).count()
         if existing:
             print(f"found {existing} existing cluster(s) -- wiping node_resource/node/cluster tables first")
+            # Same reasoning as above: AllocationNode/NodeReservation reference
+            # ResourceNode/Node with no cascade.
+            db.query(models.AllocationNode).delete()
+            db.query(models.NodeReservation).delete()
             db.query(models.ResourceNode).delete()
             db.query(models.Node).delete()
             db.query(models.Cluster).delete()

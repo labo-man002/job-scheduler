@@ -111,13 +111,20 @@ function NodeCube({
   );
 }
 
-function GhostCube({ node, coords, dimension }: { node: NodeOut; coords: number[]; dimension: number[] }) {
+function GhostCube({ node, coords, dimension, reserved }: { node: NodeOut; coords: number[]; dimension: number[]; reserved: boolean }) {
   const color = NODE_STATUS_COLOR[node.status];
   const pos = worldPos(coords, dimension);
   return (
-    <mesh position={pos} geometry={NODE_GEOMETRY}>
-      <meshBasicMaterial color={color.fill} transparent opacity={0.3} depthWrite={false} />
-    </mesh>
+    <group position={pos}>
+      <mesh geometry={NODE_GEOMETRY}>
+        <meshBasicMaterial color={color.fill} transparent opacity={0.3} depthWrite={false} />
+      </mesh>
+      {reserved && (
+        <lineSegments geometry={SELECTED_OUTLINE_GEOMETRY}>
+          <lineBasicMaterial color={RESERVED_OUTLINE_COLOR} transparent opacity={0.3} />
+        </lineSegments>
+      )}
+    </group>
   );
 }
 
@@ -185,7 +192,7 @@ export function Lattice3DThree({
             <Edge key={`c${i}`} from={from} to={to} dashed />
           ))}
           {ghosts.map(({ node, coords }, i) => (
-            <GhostCube key={`g${i}`} node={node} coords={coords} dimension={dimension} />
+            <GhostCube key={`g${i}`} node={node} coords={coords} dimension={dimension} reserved={reservationInfoByNodeId.has(node.node_id)} />
           ))}
           {nodes.map((node) => (
             <NodeCube

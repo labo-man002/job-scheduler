@@ -288,6 +288,25 @@ def test_get_unknown_cluster_returns_404(api_client, db):
     assert resp.status_code == 404
 
 
+def test_list_cluster_allocations_returns_running_jobs_by_node(api_client, db, seeded_cluster):
+    submit_resp = api_client.post("/jobs", json={
+        "client_id": seeded_cluster["client_id"], "priority": "NORMAL", "duration": 10,
+        "requirements": [{"resource_type": "CPU", "amount": 2}],
+    })
+    job_id = submit_resp.json()["job_id"]
+
+    resp = api_client.get(f"/clusters/{seeded_cluster['cluster_id']}/allocations")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 2  # amount=2, one CPU ResourceNode each
+    assert all(entry["job_id"] == job_id and entry["resource_type"] == "CPU" for entry in body)
+
+
+def test_list_cluster_allocations_unknown_cluster_returns_404(api_client, db):
+    resp = api_client.get("/clusters/999999/allocations")
+    assert resp.status_code == 404
+
+
 def test_create_quota_returns_201(api_client, db, seeded_cluster):
     resp = api_client.post("/quotas", json={
         "institute_id": seeded_cluster["institute_id"], "resource_type": "CPU", "limit": 4,

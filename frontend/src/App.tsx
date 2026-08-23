@@ -14,8 +14,7 @@ import { AdminReservationsPage } from "@/pages/admin/AdminReservationsPage";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/lib/useTheme";
 
-function Nav() {
-  const { theme, toggleTheme } = useTheme();
+function Nav({ theme, toggleTheme }: { theme: "light" | "dark"; toggleTheme: () => void }) {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
       isActive ? "bg-secondary" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
@@ -53,10 +52,12 @@ function Nav() {
 }
 
 function App() {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <>
-      <Toaster richColors position="bottom-right" />
-      <Nav />
+      <Toaster richColors position="bottom-right" theme={theme} />
+      <Nav theme={theme} toggleTheme={toggleTheme} />
       <Routes>
         <Route path="/" element={<ClustersPage />} />
         <Route path="/clusters" element={<ClustersPage />} />

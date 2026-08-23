@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import ClassVar
 
+from sqlalchemy.orm import contains_eager, selectinload
+
 from app import models
 from app.domain.exceptions import (
     ClientNotFoundError,
@@ -216,7 +218,14 @@ class Server:
         return reservation
 
     def list_reservations(self, institute_id=None, cluster_id=None):
-        query = self.db.query(models.Reservation)
+        # Eager-load node_reservations/node -- _reservation_list_item (routers/reservations.py)
+        # accesses reservation.node_reservations[0].node per row, which would otherwise be
+        # an N+1 lazy-load on every GET /reservations call. selectinload issues one extra
+        # batched query rather than joining, so it composes cleanly with the cluster_id
+        # filter's own join below instead of fighting over the same relationship.
+        query = self.db.query(models.Reservation).options(
+            selectinload(models.Reservation.node_reservations).selectinload(models.NodeReservation.node)
+        )
         if institute_id is not None:
             query = query.filter_by(institute_id=institute_id)
         if cluster_id is not None:
@@ -268,6 +277,7 @@ class Server:
     def list_cluster_allocations(self, cluster_id):
         """Every currently-occupied resource unit in this cluster, and which job
         occupies it -- the reverse lookup of get_allocation_details (job -> nodes)."""
+        self.get_cluster(cluster_id)  # raises ClusterNotFoundError if missing, matching every other /clusters/{cluster_id}/* route
         return (
             self.db.query(models.AllocationNode)
             .join(models.ResourceNode, models.ResourceNode.resource_node_id == models.AllocationNode.resource_node_id)
@@ -275,6 +285,13 @@ class Server:
             .join(models.Allocation, models.Allocation.allocation_id == models.AllocationNode.allocation_id)
             .filter(models.Node.cluster_id == cluster_id)
             .filter(models.Allocation.allocation_status == AllocationStatus.ALLOCATED)
+            # contains_eager populates resource_node/allocation from the joins above
+            # instead of lazy-loading them per row -- the router accesses both on
+            # every returned AllocationNode.
+            .options(
+                contains_eager(models.AllocationNode.resource_node),
+                contains_eager(models.AllocationNode.allocation),
+            )
             .all()
         )
 

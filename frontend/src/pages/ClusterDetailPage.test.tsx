@@ -134,4 +134,21 @@ describe("ClusterDetailPage", () => {
     expect(jobLink).toHaveAttribute("href", "/jobs/42");
     expect(jobLink.textContent).toMatch(/CPU, GPU/);
   });
+
+  it("aggregates multiple units of the same resource type into a count instead of repeating it", async () => {
+    mockGet(CLUSTER, [], [], [
+      { node_id: 10, job_id: 42, resource_type: "CPU" },
+      { node_id: 10, job_id: 42, resource_type: "CPU" },
+      { node_id: 10, job_id: 42, resource_type: "CPU" },
+      { node_id: 10, job_id: 42, resource_type: "CPU" },
+    ]);
+
+    renderPage();
+    await screen.findByText("test-cluster");
+    await userEvent.click(screen.getByText("0,0"));
+
+    const jobLink = await screen.findByRole("link", { name: /job 42/i });
+    expect(jobLink.textContent).toMatch(/CPU x4/);
+    expect(jobLink.textContent).not.toMatch(/CPU, CPU/);
+  });
 });

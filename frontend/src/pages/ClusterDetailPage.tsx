@@ -70,18 +70,23 @@ function NodeDetailPanel({
         <div className="space-y-1">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Running jobs</label>
           {Object.entries(
-            allocations.reduce<Record<number, string[]>>((byJob, a) => {
-              (byJob[a.job_id] ??= []).push(a.resource_type);
+            allocations.reduce<Record<number, Record<string, number>>>((byJob, a) => {
+              const counts = (byJob[a.job_id] ??= {});
+              counts[a.resource_type] = (counts[a.resource_type] ?? 0) + 1;
               return byJob;
             }, {}),
-          ).map(([jobId, resourceTypes]) => (
+          ).map(([jobId, countsByType]) => (
             <Link
               key={jobId}
               to={`/jobs/${jobId}`}
               className="flex items-center justify-between rounded-md border px-2 py-1 font-mono text-sm hover:bg-secondary/50"
             >
               <span>job {jobId}</span>
-              <span className="text-muted-foreground">{resourceTypes.join(", ")}</span>
+              <span className="text-muted-foreground">
+                {Object.entries(countsByType)
+                  .map(([type, count]) => (count > 1 ? `${type} x${count}` : type))
+                  .join(", ")}
+              </span>
             </Link>
           ))}
         </div>
@@ -184,6 +189,14 @@ export function ClusterDetailPage() {
 
   return (
     <div className="p-6 space-y-4">
+      {(institutesQuery.isError || reservationsQuery.isError) && (
+        // Institutes/reservations failing doesn't block the page (the cluster itself
+        // loaded fine), but silently falling back to empty maps would make every node
+        // look unreserved -- a false all-clear an admin could act on. Say so instead.
+        <p className="text-sm text-destructive">
+          Failed to load reservation data -- node reservations below may be incomplete.
+        </p>
+      )}
       <div>
         <Link to="/clusters" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline">
           <ArrowLeft className="size-3.5" />
