@@ -142,6 +142,14 @@ export function ClusterDetailPage() {
 
   return (
     <div className="p-6 space-y-4">
+      {(institutesQuery.isError || reservationsQuery.isError) && (
+        // Institutes/reservations failing doesn't block the page (the cluster itself
+        // loaded fine), but silently falling back to empty maps would make every node
+        // look unreserved -- a false all-clear an admin could act on. Say so instead.
+        <p className="text-sm text-destructive">
+          Failed to load reservation data -- node reservations below may be incomplete.
+        </p>
+      )}
       <div>
         <Link to="/clusters" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline">
           <ArrowLeft className="size-3.5" />

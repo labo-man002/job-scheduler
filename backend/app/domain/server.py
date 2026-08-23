@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import ClassVar
 
+from sqlalchemy.orm import selectinload
+
 from app import models
 from app.domain.exceptions import (
     ClientNotFoundError,
@@ -216,7 +218,14 @@ class Server:
         return reservation
 
     def list_reservations(self, institute_id=None, cluster_id=None):
-        query = self.db.query(models.Reservation)
+        # Eager-load node_reservations/node -- _reservation_list_item (routers/reservations.py)
+        # accesses reservation.node_reservations[0].node per row, which would otherwise be
+        # an N+1 lazy-load on every GET /reservations call. selectinload issues one extra
+        # batched query rather than joining, so it composes cleanly with the cluster_id
+        # filter's own join below instead of fighting over the same relationship.
+        query = self.db.query(models.Reservation).options(
+            selectinload(models.Reservation.node_reservations).selectinload(models.NodeReservation.node)
+        )
         if institute_id is not None:
             query = query.filter_by(institute_id=institute_id)
         if cluster_id is not None:
