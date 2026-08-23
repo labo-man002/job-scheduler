@@ -87,6 +87,13 @@ def main():
         existing = db.query(models.Cluster).count()
         if existing:
             print(f"found {existing} existing cluster(s) -- wiping node_resource/node/cluster tables first")
+            # AllocationNode/NodeReservation reference ResourceNode/Node with no
+            # ON DELETE CASCADE, and bulk Query.delete() bypasses ORM-level cascade
+            # rules -- delete these dependents first or the deletes below raise a
+            # foreign-key IntegrityError as soon as a job has ever run or a node has
+            # ever been reserved against this data.
+            db.query(models.AllocationNode).delete()
+            db.query(models.NodeReservation).delete()
             db.query(models.ResourceNode).delete()
             db.query(models.Node).delete()
             db.query(models.Cluster).delete()

@@ -33,6 +33,18 @@ describe("TopologyView", () => {
     expect(onSelectNode).toHaveBeenCalledWith(expect.objectContaining({ node_id: 3 }));
   });
 
+  it("calls onSelectNode exactly once when clicking an unselected node, not once for the focus seed and once for the click", async () => {
+    // Nodes aren't themselves focusable, so clicking one shifts DOM focus to the
+    // container first -- without the mousedown suppression this fires onSelectNode
+    // twice: once with the origin node (from the focus handler), once with the
+    // actually-clicked node.
+    const onSelectNode = vi.fn();
+    render(<TopologyView dimension={[2, 2]} wrap={false} nodes={make2x2Grid()} selectedNodeId={null} onSelectNode={onSelectNode} />);
+    await userEvent.click(screen.getByText("1,1")); // node 4, not the origin
+    expect(onSelectNode).toHaveBeenCalledOnce();
+    expect(onSelectNode).toHaveBeenCalledWith(expect.objectContaining({ node_id: 4 }));
+  });
+
   it("seeds a selection at the origin node when the container is focused with nothing selected", () => {
     const onSelectNode = vi.fn();
     const { container } = render(
