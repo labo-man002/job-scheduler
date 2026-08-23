@@ -34,7 +34,7 @@ function mockGet(clusters: unknown[] = CLUSTERS, jobs: unknown[] = JOBS, events:
 }
 
 function renderPage() {
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
@@ -69,5 +69,22 @@ describe("DashboardPage", () => {
     renderPage();
 
     expect(await screen.findByText(/no activity yet/i)).toBeInTheDocument();
+  });
+
+  it("shows an error message, not the empty state, when the activity feed fails to load", async () => {
+    vi.mocked(api.GET)
+      .mockReset()
+      .mockImplementation(((path: string) => {
+        if (path === "/clusters") return Promise.resolve({ data: CLUSTERS, error: undefined, response: new Response(null, { status: 200 }) });
+        if (path === "/jobs") return Promise.resolve({ data: JOBS, error: undefined, response: new Response(null, { status: 200 }) });
+        if (path === "/jobs/events/recent")
+          return Promise.resolve({ data: undefined, error: { detail: "boom" }, response: new Response(null, { status: 500 }) });
+        throw new Error(`unexpected path ${path}`);
+      }) as typeof api.GET);
+
+    renderPage();
+
+    expect(await screen.findByText(/failed to load activity/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no activity yet/i)).not.toBeInTheDocument();
   });
 });

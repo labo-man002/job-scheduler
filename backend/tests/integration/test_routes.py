@@ -389,19 +389,36 @@ def test_get_job_events_returns_history(api_client, db, seeded_cluster):
 
 
 def test_list_recent_events_returns_events_across_jobs_newest_first(api_client, db, seeded_cluster):
-    submit_resp = api_client.post("/jobs", json={
+    first_resp = api_client.post("/jobs", json={
         "client_id": seeded_cluster["client_id"], "priority": "NORMAL", "duration": 10,
         "requirements": [{"resource_type": "CPU", "amount": 2}],
     })
-    job_id = submit_resp.json()["job_id"]
+    first_job_id = first_resp.json()["job_id"]
+
+    second_resp = api_client.post("/jobs", json={
+        "client_id": seeded_cluster["client_id"], "priority": "NORMAL", "duration": 10,
+        "requirements": [{"resource_type": "CPU", "amount": 2}],
+    })
+    second_job_id = second_resp.json()["job_id"]
 
     resp = api_client.get("/jobs/events/recent", params={"limit": 5})
     assert resp.status_code == 200, resp.text
     events = resp.json()
-    assert events[0]["job_id"] == job_id
+    # Newest first, across both jobs -- the second job's events precede the first's.
+    assert events[0]["job_id"] == second_job_id
     assert events[0]["event_type"] == "RUNNING"
-    assert events[1]["job_id"] == job_id
+    assert events[1]["job_id"] == second_job_id
     assert events[1]["event_type"] == "QUEUED"
+    assert events[2]["job_id"] == first_job_id
+    assert events[2]["event_type"] == "RUNNING"
+    assert events[3]["job_id"] == first_job_id
+    assert events[3]["event_type"] == "QUEUED"
+
+
+def test_list_recent_events_rejects_out_of_range_limit(api_client, db):
+    assert api_client.get("/jobs/events/recent", params={"limit": -1}).status_code == 422
+    assert api_client.get("/jobs/events/recent", params={"limit": 0}).status_code == 422
+    assert api_client.get("/jobs/events/recent", params={"limit": 1000}).status_code == 422
 
 
 def test_list_and_get_institute(api_client, db, seeded_cluster):

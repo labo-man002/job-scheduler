@@ -145,6 +145,8 @@ export function DashboardPage() {
           <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Live activity</h2>
           {eventsQuery.isPending ? (
             <LoadingState text="Loading activity…" />
+          ) : eventsQuery.isError ? (
+            <p className="text-sm text-destructive">Failed to load activity: {String(eventsQuery.error)}</p>
           ) : events.length === 0 ? (
             <EmptyState icon={Activity} title="No activity yet" description="Job events will appear here as they happen." />
           ) : (

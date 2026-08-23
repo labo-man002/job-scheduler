@@ -15,12 +15,14 @@ export function useCountUp(target: number, durationMs = 500) {
     let frame: number;
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / durationMs);
-      setValue(from + (target - from) * t);
-      if (t < 1) {
-        frame = requestAnimationFrame(tick);
-      } else {
-        fromRef.current = target;
-      }
+      const current = from + (target - from) * t;
+      setValue(current);
+      // Updated every frame, not just on completion -- otherwise an animation
+      // interrupted by a new target (e.g. a refetch landing mid-animation)
+      // restarts from the stale pre-animation value instead of wherever the
+      // number actually is, producing a visible backward jump.
+      fromRef.current = current;
+      if (t < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
