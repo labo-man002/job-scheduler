@@ -1,6 +1,7 @@
 """Queue ordering strategies used by Scheduler."""
 
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 from app.enums.priority import Priority
 
@@ -20,7 +21,7 @@ class SortStrategy(ABC):
 class PrioritySort(SortStrategy):
     """Urgent jobs first, with FIFO ordering for jobs at the same priority."""
 
-    _rank = {
+    _rank: ClassVar[dict] = {
         Priority.URGENT: 0,
         Priority.HIGH: 1,
         Priority.NORMAL: 2,
