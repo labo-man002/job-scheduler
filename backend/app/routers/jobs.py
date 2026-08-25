@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app import schemas
 from app.dependencies import DbDep
@@ -18,6 +18,14 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 @router.get("", response_model=list[schemas.JobListItemOut])
 def list_jobs(db: DbDep, client_id: int | None = None, status: JobStatus | None = None):
     return Server(db).list_jobs(client_id=client_id, status=status)
+
+
+@router.get("/events/recent", response_model=list[schemas.RecentJobEventOut])
+def list_recent_events(db: DbDep, limit: int = Query(default=20, ge=1, le=100)):
+    return [
+        schemas.RecentJobEventOut(job_id=e.job_id, event_type=e.event_type, time=e.time, comment=e.comment)
+        for e in Server(db).list_recent_events(limit=limit)
+    ]
 
 
 @router.get("/{job_id}", response_model=schemas.JobDetailOut)

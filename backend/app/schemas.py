@@ -103,6 +103,13 @@ class JobEventOut(OurBaseModel):
     comment: str
 
 
+class RecentJobEventOut(OurBaseModel):
+    job_id: int
+    event_type: JobStatus
+    time: datetime
+    comment: str
+
+
 class InstituteCreate(OurBaseModel):
     institute_name: str = Field(min_length=1)
 
