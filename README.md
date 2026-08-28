@@ -2,9 +2,33 @@
 
 A job scheduling and placement system: a client submits a job, a scheduler orders the queue, a placer assigns the job to a node, and the resulting allocation is tracked in a database.
 
-Built with **FastAPI** (backend, `backend/`) and **React** (frontend, `frontend/`). Design history lives in issues #25–#27; backend implementation tracking is issue #49, frontend is #68.
+Built with **FastAPI** (backend, `backend/`) and **React** (frontend, `frontend/`). Design history lives in issues #25–#27.
 
-## Backend
+<p align="center">
+  <img src="docs/screenshots/cluster-detail.png" width="850" alt="Cluster topology view with a node selected">
+</p>
+
+## Features
+
+- **Cluster topology visualization** — ring, mesh, and torus layouts rendered live, with per-node resource usage and a click-through detail panel.
+- **Job lifecycle management** — submit jobs with multi-resource requirements, track them through `QUEUED` → `RUNNING` → `COMPLETED`/`CANCELLED`, and inspect the full event history and allocation for each one.
+- **Light & dark mode**, throughout.
+
+| Clusters | Jobs |
+|---|---|
+| ![Clusters list](docs/screenshots/clusters.png) | ![Jobs list](docs/screenshots/jobs.png) |
+
+| Job detail | Submit a job |
+|---|---|
+| ![Job detail](docs/screenshots/job-detail.png) | ![Submit job form](docs/screenshots/job-submit.png) |
+
+<p align="center">
+  <img src="docs/screenshots/clusters-dark.png" width="850" alt="Clusters list in dark mode">
+</p>
+
+## Getting started
+
+### Backend
 
 ```bash
 cd backend
@@ -18,7 +42,7 @@ Requires a `.env` with `DATABASE_HOSTNAME`/`DATABASE_PORT`/`DATABASE_USERNAME`/`
 
 Tests (from `backend/`): `.venv/bin/pytest -v`.
 
-## Frontend
+### Frontend
 
 A pnpm workspace at the repo root; the app lives in `frontend/`.
 
