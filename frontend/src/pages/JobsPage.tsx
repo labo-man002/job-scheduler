@@ -5,6 +5,7 @@ import { ChevronRight, ListTodo, Plus } from "lucide-react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema.d.ts";
 import { JOB_STATUS_COLOR } from "@/lib/jobStatus";
+import { formatApiError } from "@/lib/apiError";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -97,7 +98,7 @@ export function JobsPage() {
           ))}
         </div>
       )}
-      {jobsQuery.isError && <p className="text-destructive">Failed to load jobs: {String(jobsQuery.error)}</p>}
+      {jobsQuery.isError && <p className="text-destructive">Failed to load jobs: {formatApiError(jobsQuery.error)}</p>}
       {jobsQuery.data && jobsQuery.data.length === 0 && (status || clientId !== "" ? (
         <EmptyState icon={ListTodo} title="No jobs match these filters" description="Try a different status or client." />
       ) : (

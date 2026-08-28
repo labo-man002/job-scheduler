@@ -81,7 +81,7 @@ export function JobDetailPage() {
         <Skeleton className="h-40 w-full" />
       </div>
     );
-  if (jobQuery.isError) return <p className="p-6 text-destructive">Failed to load job: {String(jobQuery.error)}</p>;
+  if (jobQuery.isError) return <p className="p-6 text-destructive">Failed to load job: {formatApiError(jobQuery.error)}</p>;
 
   const job = jobQuery.data;
   const color = JOB_STATUS_COLOR[job.status];
@@ -133,7 +133,7 @@ export function JobDetailPage() {
       <Card className="space-y-2 p-4">
         <SectionHeading icon={Server}>Allocation</SectionHeading>
         {allocationQuery.isPending && <LoadingState text="Loading…" />}
-        {allocationQuery.isError && <p className="text-sm text-destructive">Failed to load allocation: {String(allocationQuery.error)}</p>}
+        {allocationQuery.isError && <p className="text-sm text-destructive">Failed to load allocation: {formatApiError(allocationQuery.error)}</p>}
         {allocationQuery.data === null && <p className="text-sm text-muted-foreground">No allocation yet.</p>}
         {allocationQuery.data && (
           <div className="space-y-1 font-mono text-sm">
@@ -154,7 +154,7 @@ export function JobDetailPage() {
       <Card className="space-y-3 p-4">
         <SectionHeading icon={History}>Event history</SectionHeading>
         {eventsQuery.isPending && <LoadingState text="Loading…" />}
-        {eventsQuery.isError && <p className="text-sm text-destructive">Failed to load events: {String(eventsQuery.error)}</p>}
+        {eventsQuery.isError && <p className="text-sm text-destructive">Failed to load events: {formatApiError(eventsQuery.error)}</p>}
 
         {eventsQuery.data && (
           <ol className="space-y-4 border-l pl-4">
