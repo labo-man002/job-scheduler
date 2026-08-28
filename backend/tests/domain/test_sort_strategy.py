@@ -3,9 +3,9 @@
 
 import pytest
 
-from app.domain.sort_strategy import FifoSort, PrioritySort, SortStrategy
+from app.domain.sort_strategy import FifoSort, PrioritySort
 from app.enums.priority import Priority
-from tests.factories import  make_job
+from tests.factories import make_job
 
 
 def test_fifo_sort_preserves_order():
