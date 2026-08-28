@@ -158,6 +158,7 @@ def main():
         existing = db.query(models.Cluster).count()
         if existing:
             print(f"found {existing} existing cluster(s) -- wiping node_resource/node/cluster tables first")
+
             db.query(models.AllocationNode).delete()
             db.query(models.NodeReservation).delete()
             db.query(models.ResourceNode).delete()
