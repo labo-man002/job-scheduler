@@ -155,6 +155,7 @@ export function JobDetailPage() {
         <SectionHeading icon={History}>Event history</SectionHeading>
         {eventsQuery.isPending && <LoadingState text="Loading…" />}
         {eventsQuery.isError && <p className="text-sm text-destructive">Failed to load events: {String(eventsQuery.error)}</p>}
+
         {eventsQuery.data && (
           <ol className="space-y-4 border-l pl-4">
             {eventsQuery.data.map((event, i) => (

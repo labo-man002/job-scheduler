@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/EmptyState";
 
+
 type JobStatus = components["schemas"]["JobStatus"];
 
 const JOB_STATUSES: JobStatus[] = ["PENDING", "QUEUED", "RUNNING", "COMPLETED", "CANCELLED", "FAILED"];
@@ -102,6 +103,7 @@ export function JobsPage() {
       ) : (
         <EmptyState icon={ListTodo} title="No jobs yet" description="Submit one to get started." />
       ))}
+
 
       {jobsQuery.data && jobsQuery.data.length > 0 && (
         <ul className="space-y-3">

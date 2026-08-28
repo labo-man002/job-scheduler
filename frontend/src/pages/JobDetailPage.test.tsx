@@ -35,7 +35,10 @@ function mockGet(job: typeof JOB) {
 }
 
 function renderPage() {
-  const queryClient = new QueryClient();
+  // retry: false -- an error-path test would otherwise sit through React Query's
+  // default 3 retries (exponential backoff) before settling into isError, timing
+  // out findByText's default wait window long before that happens.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/jobs/42"]}>
@@ -92,5 +95,19 @@ describe("JobDetailPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: /cancel job/i }));
 
     expect(api.DELETE).not.toHaveBeenCalled();
+  });
+
+  it("shows the real API error message, not '[object Object]', when the job fails to load", async () => {
+    vi.mocked(api.GET)
+      .mockReset()
+      .mockImplementation(((path: string) => {
+        if (path === "/jobs/{job_id}")
+          return Promise.resolve({ data: undefined, error: { detail: "Job 42 not found" }, response: new Response(null, { status: 404 }) });
+        throw new Error(`unexpected path ${path}`);
+      }) as typeof api.GET);
+
+    renderPage();
+
+    expect(await screen.findByText(/failed to load job: Job 42 not found/i)).toBeInTheDocument();
   });
 });

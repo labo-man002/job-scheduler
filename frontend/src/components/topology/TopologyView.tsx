@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { components } from "@/api/schema.d.ts";
 import { NODE_STATUS_COLOR, NODE_STATUS_ORDER } from "@/lib/nodeStatus";
+import { EDGE_COLOR, SELECTED_OUTLINE_COLOR } from "@/lib/topologyColors";
 import {
   buildEdges,
   buildWrapGhosts,
@@ -19,7 +20,6 @@ const CELL = 56;
 const GAP = 7;
 const STEP = CELL + GAP;
 const GHOST_OPACITY = 0.3;
-const EDGE_COLOR = "#94a3b8";
 
 interface TopologyViewProps {
   dimension: number[];
@@ -44,13 +44,13 @@ function NodeBox({
 }) {
   const color = NODE_STATUS_COLOR[node.status];
   return (
-    <g transform={`translate(${x}, ${y})`} onClick={onSelect} className="cursor-pointer">
+    <g transform={`translate(${x}, ${y})`} onClick={onSelect} className="cursor-pointer" data-topology-node="">
       <title>{nodeTitle(node)}</title>
       <rect
         width={CELL}
         height={CELL}
         fill={color.fill}
-        stroke={selected ? "#0f172a" : color.border}
+        stroke={selected ? SELECTED_OUTLINE_COLOR : color.border}
         strokeWidth={selected ? 2 : 1}
       />
       <text
@@ -307,7 +307,13 @@ export function TopologyView({ dimension, wrap, nodes, selectedNodeId, onSelectN
       return;
     }
     const current = nodes.find((n) => n.node_id === selectedNodeId);
-    if (!current) return;
+    if (!current) {
+      // selectedNodeId points at a node that's no longer in the list -- reseed
+      // from the origin rather than leaving arrow keys permanently dead.
+      const first = originNode(nodes);
+      if (first) onSelectNode(first);
+      return;
+    }
 
     const moves: Record<string, [number, 1 | -1]> = {
       ArrowLeft: [0, -1],
@@ -332,9 +338,24 @@ export function TopologyView({ dimension, wrap, nodes, selectedNodeId, onSelectN
   // SVG rects, not buttons) -- without this, tabbing to the container and pressing arrow
   // keys would do nothing forever, since handleKeyDown requires a selection to move from.
   function handleFocus() {
+    if (suppressNextFocusSeedRef.current) {
+      suppressNextFocusSeedRef.current = false;
+      return;
+    }
     if (selectedNodeId == null) {
       const first = originNode(nodes);
       if (first) onSelectNode(first);
+    }
+  }
+
+  // Nodes aren't themselves focusable, so clicking one shifts DOM focus to this
+  // container first (firing handleFocus) before the click's own onSelectNode call --
+  // without this, a single click on an unselected node would call onSelectNode twice,
+  // once with the origin node and once with the actually-clicked node.
+  const suppressNextFocusSeedRef = useRef(false);
+  function handleMouseDown(e: React.MouseEvent) {
+    if ((e.target as Element).closest("[data-topology-node]")) {
+      suppressNextFocusSeedRef.current = true;
     }
   }
 
@@ -346,6 +367,7 @@ export function TopologyView({ dimension, wrap, nodes, selectedNodeId, onSelectN
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onFocus={handleFocus}
+      onMouseDown={handleMouseDown}
       role="application"
       aria-label="cluster topology -- arrow keys move between nodes, Escape clears selection"
       className="inline-block rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
