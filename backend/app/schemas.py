@@ -201,3 +201,10 @@ class ClusterOut(OurBaseModel):
 
 class ClusterDetailOut(ClusterOut):
     nodes: list[NodeOut]
+
+
+class ResourceUsageOut(OurBaseModel):
+    institute_id: int
+    resource_type: ResourceType
+    consumed_hours: int
+    period: int  # YYYYMM

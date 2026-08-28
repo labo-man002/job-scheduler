@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.logging_config import configure_logging
-from app.routers import clients, clusters, institutes, jobs, nodes, quotas, reservations
+from app.routers import clients, clusters, institutes, jobs, nodes, quotas, reservations, resourceUsage
 
 configure_logging()
 
@@ -26,6 +26,7 @@ app.include_router(clusters.router)
 app.include_router(nodes.router)
 app.include_router(quotas.router)
 app.include_router(reservations.router)
+app.include_router(resourceUsage.router)
 
 
 @app.get("/")
