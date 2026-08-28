@@ -4,14 +4,13 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { components } from "@/api/schema.d.ts";
 import { NODE_STATUS_COLOR } from "@/lib/nodeStatus";
+import { EDGE_COLOR, SELECTED_OUTLINE_COLOR } from "@/lib/topologyColors";
 import { buildEdges, buildWrapGhosts, nodeTitle } from "@/lib/topologyMath";
 
 type NodeOut = components["schemas"]["NodeOut"];
 
 const UNIT = 1.4;
 const NODE_SIZE = 0.85;
-const EDGE_COLOR = "#94a3b8";
-const SELECTED_OUTLINE_COLOR = "#0f172a";
 
 // Shared across every cube instance -- there's no reason for each node to allocate its
 // own geometry when they're all the same size.
