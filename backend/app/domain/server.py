@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import ClassVar
 
+from sqlalchemy.orm import selectinload
+
 from app import models
 from app.domain.exceptions import (
     ClientNotFoundError,
@@ -47,7 +49,15 @@ from app.domain.placer import Placer
 from app.domain.scheduler import PendingJob, Scheduler
 from app.domain.sort_strategy import PrioritySort
 from app.domain.topology import Topology
-from app.enums import AllocationStatus, ClientStatus, JobStatus, NodeStatus, ResourceStatus, ResourceType, TopologyType
+from app.enums import (
+    AllocationStatus,
+    ClientStatus,
+    JobStatus,
+    NodeStatus,
+    ResourceStatus,
+    ResourceType,
+    TopologyType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +217,29 @@ class Server:
         logger.info("reservation %s created: institute=%s nodes=%s", reservation.id, institute_id, node_ids)
         return reservation
 
+    def list_reservations(self, institute_id=None, cluster_id=None):
+        # Eager-load node_reservations/node -- _reservation_list_item (routers/reservations.py)
+        # accesses reservation.node_reservations[0].node per row, which would otherwise be
+        # an N+1 lazy-load on every GET /reservations call. selectinload issues one extra
+        # batched query rather than joining, so it composes cleanly with the cluster_id
+        # filter's own join below instead of fighting over the same relationship.
+        query = self.db.query(models.Reservation).options(
+            selectinload(models.Reservation.node_reservations).selectinload(models.NodeReservation.node)
+        )
+        if institute_id is not None:
+            query = query.filter_by(institute_id=institute_id)
+        if cluster_id is not None:
+            # Reservation has no cluster_id column of its own -- join through its
+            # nodes (every node in a reservation shares one cluster, enforced at
+            # creation) to filter by it.
+            query = (
+                query.join(models.NodeReservation, models.NodeReservation.reservation_id == models.Reservation.id)
+                .join(models.Node, models.Node.node_id == models.NodeReservation.node_id)
+                .filter(models.Node.cluster_id == cluster_id)
+                .distinct()
+            )
+        return query.all()
+
     def cancel_reservation(self, reservation_id):
         """Doesn't touch any placement decision already made under this
         reservation's cover -- only removes it from future exclusion checks."""
@@ -217,6 +250,12 @@ class Server:
         self.db.delete(reservation)
         self.db.flush()
         logger.info("reservation %s cancelled", reservation_id)
+
+    def list_quotas(self, institute_id=None):
+        query = self.db.query(models.Quota)
+        if institute_id is not None:
+            query = query.filter_by(institute_id=institute_id)
+        return query.all()
 
     def delete_quota(self, quota_id):
         quota = self.db.query(models.Quota).filter_by(id=quota_id).one_or_none()

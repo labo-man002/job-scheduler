@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.22.0",
   "scripts": {
-    "generate:api": "PYTHONPATH=backend backend/.venv/bin/python scripts/export_openapi.py && pnpm --filter frontend generate:api"
+    "generate:api": "PYTHONPATH=backend backend/.venv/bin/python scripts/export_openapi.py && pnpm --filter frontend generate:api",
+    "seed:db": "PYTHONPATH=backend backend/.venv/bin/python scripts/seed_db.py"
   }
 }
