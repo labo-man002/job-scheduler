@@ -30,7 +30,7 @@ from app.enums import (
 )
 from sqlalchemy.exc import OperationalError
 
-from .db_factories import create_cluster_with_nodes, create_institute_and_client
+from .db_factories import IMPOSSIBLY_LARGE_AMOUNT, create_cluster_with_nodes, create_institute_and_client
 
 
 @pytest.fixture
@@ -133,7 +133,7 @@ def test_submit_job_rejects_job_too_large_for_any_cluster(db, seeded_cluster):
     with pytest.raises(JobTooLargeError):
         server.submit_job(
             client_id=seeded_cluster["client_id"],
-            requirements=[(ResourceType.CPU, 100)],  # exceeds total cluster capacity (8), not just what's free
+            requirements=[(ResourceType.CPU, IMPOSSIBLY_LARGE_AMOUNT)],
             priority=Priority.NORMAL,
             duration=10,
         )

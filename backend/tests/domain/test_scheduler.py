@@ -1,5 +1,7 @@
 
 import pytest
+
+
 from app.domain.place_algorithm import PackAlgorithm
 from app.domain.placer import Placer
 from app.domain.scheduler import Scheduler

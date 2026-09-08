@@ -103,7 +103,7 @@ def _month_bounds(reference: datetime) -> tuple[datetime, datetime]:
 
 class Server:
     _schedulers: ClassVar[dict] = {}  # cluster_id -> Scheduler, one per process per cluster
-    
+
     def __init__(self, db, sort_strategy=None, place_algorithm=None):
         self.db = db
         self.sort_strategy = sort_strategy or PrioritySort()

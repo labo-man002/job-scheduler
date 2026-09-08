@@ -12,7 +12,7 @@ from app.main import app
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
 
-from .db_factories import create_cluster_with_nodes, create_institute_and_client
+from .db_factories import IMPOSSIBLY_LARGE_AMOUNT, create_cluster_with_nodes, create_institute_and_client
 
 
 @pytest.fixture
@@ -163,7 +163,7 @@ def test_submit_job_too_large_for_any_cluster_returns_422(api_client, db, seeded
         "client_id": seeded_cluster["client_id"],
         "priority": "NORMAL",
         "duration": 10,
-        "requirements": [{"resource_type": "CPU", "amount": 100}],  # exceeds total cluster capacity (8)
+        "requirements": [{"resource_type": "CPU", "amount": IMPOSSIBLY_LARGE_AMOUNT}],
     })
     assert resp.status_code == 422
 

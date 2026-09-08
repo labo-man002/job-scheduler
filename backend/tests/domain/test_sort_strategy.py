@@ -2,9 +2,10 @@
 
 
 import pytest
+
+
 from app.domain.sort_strategy import FifoSort, PrioritySort
 from app.enums.priority import Priority
-
 from tests.factories import make_job
 
 

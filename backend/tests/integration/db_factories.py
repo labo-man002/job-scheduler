@@ -12,6 +12,15 @@ from app.enums import (
     TopologyType,
 )
 
+# An amount no real cluster (fixture or seeded demo data, since _best_fit_cluster
+# scans every cluster in the database) could ever satisfy -- used by both
+# test_server.py and test_routes.py for their "too large for any cluster" tests.
+# Kept within Postgres INTEGER range (resource_requirement.amount is a plain
+# sa.Integer(), max ~2.1 billion) so a too-large job is rejected by
+# _best_fit_cluster's capacity check before any row is inserted, not by a
+# NumericValueOutOfRange DB error that would masquerade as the same 422/JobTooLargeError.
+IMPOSSIBLY_LARGE_AMOUNT = 2_000_000_000
+
 
 def create_institute_and_client(db, owner="alice", institute_name="Test Institute"):
     institute = models.Institute(institute_name=institute_name)

@@ -17,11 +17,10 @@ class SortStrategy(ABC):
         """Comparable priority for one job, for O(log N) enqueue. Default: no distinction."""
         return 0
 
-
 class PrioritySort(SortStrategy):
     """Urgent jobs first, with FIFO ordering for jobs at the same priority."""
 
-    _rank :ClassVar[dict] = {
+    _rank: ClassVar[dict] = {
         Priority.URGENT: 0,
         Priority.HIGH: 1,
         Priority.NORMAL: 2,
