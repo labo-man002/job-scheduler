@@ -1,5 +1,6 @@
 from logging.config import fileConfig
 
+import app.models  # noqa: F401 -- side-effect import, registers every model against Base.metadata for autogenerate
 from app.config import settings
 from app.database import Base
 from sqlalchemy import engine_from_config, pool
