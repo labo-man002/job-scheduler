@@ -5,11 +5,16 @@ so nothing persists.
 """
 
 import pytest
-from sqlalchemy.exc import IntegrityError, OperationalError
-
 from app import models
 from app.database import SessionLocal
-from app.enums import ClientStatus, NodeStatus, ResourceStatus, ResourceType, TopologyType
+from app.enums import (
+    ClientStatus,
+    NodeStatus,
+    ResourceStatus,
+    ResourceType,
+    TopologyType,
+)
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 
 @pytest.fixture

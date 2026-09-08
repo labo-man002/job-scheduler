@@ -4,7 +4,13 @@ the transaction and rolls it back, so nothing here needs its own cleanup.
 """
 
 from app import models
-from app.enums import ClientStatus, NodeStatus, ResourceStatus, ResourceType, TopologyType
+from app.enums import (
+    ClientStatus,
+    NodeStatus,
+    ResourceStatus,
+    ResourceType,
+    TopologyType,
+)
 
 
 def create_institute_and_client(db, owner="alice", institute_name="Test Institute"):

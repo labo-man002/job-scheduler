@@ -1,13 +1,14 @@
 
-from app.domain.place_algorithm import PackAlgorithm ,PlaceAlgorithm
+import pytest
+from app.domain.place_algorithm import PackAlgorithm
 from app.domain.placer import Placer
 from app.domain.scheduler import Scheduler
-from app.models.resourceNode import ResourceNode
 from app.domain.topology import Topology
-from app.enums.resourceStatus import ResourceStatus
 from app.enums.nodeStatus import NodeStatus
+from app.enums.resourceStatus import ResourceStatus
+
 from tests.factories import make_cluster, make_job, make_node
-import pytest
+
 
 def test_enqueue_job():
     placer = Placer([] ,algorithm =None ,topology=None)

@@ -25,6 +25,7 @@ Node/ResourceNode objects.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import ClassVar
 
 from app import models
 from app.domain.exceptions import (
@@ -46,7 +47,15 @@ from app.domain.placer import Placer
 from app.domain.scheduler import PendingJob, Scheduler
 from app.domain.sort_strategy import PrioritySort
 from app.domain.topology import Topology
-from app.enums import AllocationStatus, ClientStatus, JobStatus, NodeStatus, ResourceStatus, ResourceType, TopologyType
+from app.enums import (
+    AllocationStatus,
+    ClientStatus,
+    JobStatus,
+    NodeStatus,
+    ResourceStatus,
+    ResourceType,
+    TopologyType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +102,8 @@ def _month_bounds(reference: datetime) -> tuple[datetime, datetime]:
 
 
 class Server:
-    _schedulers = {}  # cluster_id -> Scheduler, one per process per cluster
-
+    _schedulers: ClassVar[dict] = {}  # cluster_id -> Scheduler, one per process per cluster
+    
     def __init__(self, db, sort_strategy=None, place_algorithm=None):
         self.db = db
         self.sort_strategy = sort_strategy or PrioritySort()

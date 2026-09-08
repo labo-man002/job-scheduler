@@ -2,6 +2,7 @@ from app.domain.place_algorithm import PackAlgorithm, SpreadAlgorithm
 from app.domain.placer import Placer
 from app.domain.topology import Topology
 from app.enums import NodeStatus, ResourceStatus
+
 from tests.factories import make_cluster, make_job, make_node
 
 
