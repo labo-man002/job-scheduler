@@ -7,10 +7,11 @@ of how many times a route commits."""
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from app.database import SessionLocal, engine, get_db
-from app.main import app
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
+
+from app.database import SessionLocal, engine, get_db
+from app.main import app
 
 from .db_factories import IMPOSSIBLY_LARGE_AMOUNT, create_cluster_with_nodes, create_institute_and_client
 

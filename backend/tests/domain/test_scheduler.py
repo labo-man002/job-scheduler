@@ -1,14 +1,12 @@
 
 import pytest
 
-
 from app.domain.place_algorithm import PackAlgorithm
 from app.domain.placer import Placer
 from app.domain.scheduler import Scheduler
 from app.domain.topology import Topology
 from app.enums.nodeStatus import NodeStatus
 from app.enums.resourceStatus import ResourceStatus
-
 from tests.factories import make_cluster, make_job, make_node
 
 

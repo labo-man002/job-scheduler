@@ -5,6 +5,8 @@ so nothing persists.
 """
 
 import pytest
+from sqlalchemy.exc import IntegrityError, OperationalError
+
 from app import models
 from app.database import SessionLocal
 from app.enums import (
@@ -14,7 +16,6 @@ from app.enums import (
     ResourceType,
     TopologyType,
 )
-from sqlalchemy.exc import IntegrityError, OperationalError
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 import pytest
+
 from app import models
 from app.domain.topology import Topology
 from app.enums import TopologyType
-
 from tests.factories import make_cluster, make_node
 
 

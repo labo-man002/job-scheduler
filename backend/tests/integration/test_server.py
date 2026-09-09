@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy.exc import OperationalError
+
 from app import models
 from app.database import SessionLocal
 from app.domain.exceptions import (
@@ -28,7 +30,6 @@ from app.enums import (
     ResourceType,
     TopologyType,
 )
-from sqlalchemy.exc import OperationalError
 
 from .db_factories import IMPOSSIBLY_LARGE_AMOUNT, create_cluster_with_nodes, create_institute_and_client
 
@@ -345,6 +346,23 @@ def test_cancelling_a_queued_job_does_not_block_jobs_behind_it(db, seeded_cluste
 
 
 def test_jobs_route_to_best_fit_cluster_and_dont_block_each_other(db):
+    # The local database can contain seeded jobs and clusters. Both affect
+    # routing: queued jobs seed a scheduler and clusters compete for
+    # best-fit. Clear their dependency graph inside this fixture's transaction
+    # so the assertions cover only the two clusters below; teardown rolls it
+    # all back.
+    Server._schedulers.clear()
+    db.query(models.AllocationNode).delete()
+    db.query(models.JobEvent).delete()
+    db.query(models.Allocation).delete()
+    db.query(models.ResourceRequirement).delete()
+    db.query(models.Job).delete()
+    db.query(models.NodeReservation).delete()
+    db.query(models.ResourceNode).delete()
+    db.query(models.Node).delete()
+    db.query(models.Cluster).delete()
+    db.flush()
+
     _, client = create_institute_and_client(db)
     small_cluster, _ = create_cluster_with_nodes(db, node_count=2, resources_per_node=1, cluster_name="small")  # capacity 2
     large_cluster, _ = create_cluster_with_nodes(db, node_count=4, resources_per_node=4, cluster_name="large")  # capacity 16
