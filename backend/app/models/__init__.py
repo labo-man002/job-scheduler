@@ -2,6 +2,7 @@ from .allocation import Allocation
 from .allocationNode import AllocationNode
 from .client import Client
 from .cluster import Cluster
+from .institute import Institute
 from .job import Job
 from .jobEvent import JobEvent
 from .node import Node
@@ -11,7 +12,6 @@ from .reservation import Reservation
 from .resourceNode import ResourceNode
 from .resourceRequirement import ResourceRequirement
 from .resourceUsage import ResourceUsage
-from .institute import Institute
 
 __all__ = [
     "Allocation",
@@ -28,5 +28,4 @@ __all__ = [
     "ResourceNode",
     "ResourceRequirement",
     "ResourceUsage",
-     "Institute"
 ]

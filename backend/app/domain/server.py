@@ -381,6 +381,23 @@ class Server:
     def get_allocation_details(self, job_id):
         return self.db.query(models.Allocation).filter_by(job_id=job_id).one_or_none()
 
+    def list_resource_usage(self, institute_id, period=None):
+        """Return cumulative resource-hours for an institute (group).
+
+        ``period`` is a calendar month encoded as YYYYMM and defaults to the
+        current month.  Usage is written only when an allocation ends, so a
+        currently-running job is intentionally not included yet.
+        """
+        if self.db.query(models.Institute).filter_by(institute_id=institute_id).one_or_none() is None:
+            raise InstituteNotFoundError(institute_id)
+        period = period if period is not None else self._usage_period(datetime.now(timezone.utc))
+        return (
+            self.db.query(models.ResourceUsage)
+            .filter_by(institute_id=institute_id, period=period)
+            .order_by(models.ResourceUsage.resource_type)
+            .all()
+        )
+
     def _get_job_or_raise(self, job_id):
         job = self.db.query(models.Job).filter_by(job_id=job_id).one_or_none()
         if job is None:
@@ -480,10 +497,60 @@ class Server:
             allocation.end_time = datetime.now(timezone.utc)
             allocation.duration = int((allocation.end_time - allocation.begin_time).total_seconds() // 60)
             allocation.allocation_status = AllocationStatus.RELEASED
+            self._record_resource_usage(job.client.institute_id, allocation, resource_nodes)
         job.status = final_status
         self._record_event(job, final_status, "Cancelled while running" if final_status == JobStatus.CANCELLED else "Completed")
         if cluster_id is not None:
             self._drain_queue(cluster_id, self._get_scheduler(cluster_id))  # freed resources may unblock others
+
+    @staticmethod
+    def _usage_period(reference):
+        return reference.year * 100 + reference.month
+
+    def _record_resource_usage(self, institute_id, allocation, resource_nodes):
+        """Add an ended allocation's actual whole resource-hours to its group.
+
+        The resource-usage schema stores integer hours, so incomplete hours
+        are not rounded up.  Locking the institute serializes updates for a
+        group and avoids lost increments when jobs finish concurrently.
+        """
+        if allocation.duration is None:
+            return
+
+        resource_count_by_type = {}
+        for resource_node in resource_nodes:
+            resource_type = resource_node.resource_type
+            resource_count_by_type[resource_type] = resource_count_by_type.get(resource_type, 0) + 1
+
+        usage_hours_by_type = {
+            resource_type: allocation.duration * resource_count // 60
+            for resource_type, resource_count in resource_count_by_type.items()
+        }
+
+        if not any(usage_hours_by_type.values()):
+            return
+
+        # Other transactions, wait before modifying this locked row.
+        self.db.query(models.Institute).filter_by(institute_id=institute_id).with_for_update().one()
+        
+        period = self._usage_period(allocation.end_time)
+        for resource_type, consumed_hours in usage_hours_by_type.items():
+            if not consumed_hours:
+                continue
+            usage = (
+                self.db.query(models.ResourceUsage)
+                .filter_by(institute_id=institute_id, resource_type=resource_type, period=period)
+                .one_or_none()
+            )
+            if usage is None:
+                self.db.add(models.ResourceUsage(
+                    institute_id=institute_id,
+                    resource_type=resource_type,
+                    consumed_hours=consumed_hours,
+                    period=period,
+                ))
+            else:
+                usage.consumed_hours += consumed_hours
 
     def _build_placer(self, cluster_id):
         cluster = self.db.query(models.Cluster).filter_by(cluster_id=cluster_id).one_or_none()
