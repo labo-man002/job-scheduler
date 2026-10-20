@@ -1,25 +1,25 @@
 """Immutable IDs, enums and domain-specific errors for a two-tier network fabric."""
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 
-class DeviceKind(StrEnum):
+class DeviceKind(str, Enum):
     SWITCH = "SWITCH"
     GPU_SERVER = "GPU_SERVER"
 
 
-class SwitchRole(StrEnum):
+class SwitchRole(str, Enum):
     LEAF = "LEAF"
     SPINE = "SPINE"
 
 
-class LinkKind(StrEnum):
+class LinkKind(str, Enum):
     LEAF_SPINE = "LEAF_SPINE"
     SERVER_LEAF = "SERVER_LEAF"
 
 
-class OperationalState(StrEnum):
+class OperationalState(str, Enum):
     UP = "UP"
     DOWN = "DOWN"
 
