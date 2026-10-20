@@ -1,5 +1,4 @@
-from datetime import UTC, datetime, timedelta
-
+from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.exc import OperationalError
 
@@ -37,6 +36,7 @@ from .db_factories import (
     create_institute_and_client,
 )
 
+UTC = timezone.utc
 
 @pytest.fixture
 def db():

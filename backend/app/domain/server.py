@@ -24,9 +24,8 @@ Node/ResourceNode objects.
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import ClassVar
-
+from datetime import datetime, timedelta, timezone
 from app import models
 from app.domain.exceptions import (
     ClientNotFoundError,
@@ -59,7 +58,7 @@ from app.enums import (
 
 logger = logging.getLogger(__name__)
 
-
+UTC = timezone.utc
 @dataclass
 class ResourceCount:
     resource_type: ResourceType

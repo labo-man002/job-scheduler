@@ -4,8 +4,7 @@ enough to isolate them -- this uses a SAVEPOINT so an inner commit() only
 commits to the savepoint, and the real transaction never lands, regardless
 of how many times a route commits."""
 
-from datetime import UTC, datetime, timedelta
-
+from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
@@ -19,6 +18,8 @@ from .db_factories import (
     create_institute_and_client,
 )
 
+
+UTC = timezone.utc
 
 @pytest.fixture
 def db():
