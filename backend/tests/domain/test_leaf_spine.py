@@ -6,13 +6,25 @@ from math import inf, nan
 import pytest
 
 from app.domain.leaf_spine import (
-    DeviceKind, DeviceInUseError, DuplicateIdError, EndpointOccupiedError,
-    EndpointRef, GpuServer, InvalidConnectionError, InvalidLinkPropertiesError,
-    LeafSpineTopology, LinkKind, OperationalState, PortGroupConfig, Switch,
-    SwitchHardwareConfig, SwitchRole, UnknownDeviceError, UnknownEndpointError,
+    DeviceInUseError,
+    DeviceKind,
+    DuplicateIdError,
+    EndpointOccupiedError,
+    EndpointRef,
+    GpuServer,
+    InvalidConnectionError,
+    InvalidLinkPropertiesError,
+    LeafSpineTopology,
+    LinkKind,
+    OperationalState,
+    PortGroupConfig,
+    Switch,
+    SwitchHardwareConfig,
+    SwitchRole,
+    UnknownDeviceError,
+    UnknownEndpointError,
     UnknownLinkError,
 )
-
 
 CONFIG = SwitchHardwareConfig("test", (PortGroupConfig(4, 400),))
 

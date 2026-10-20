@@ -11,9 +11,9 @@ from math import isfinite
 from .devices import GpuServer, Switch
 from .link import Link, NetworkPath
 from .types import (
+    DeviceInUseError,
     DeviceKind,
     DeviceRef,
-    DeviceInUseError,
     DuplicateIdError,
     EndpointOccupiedError,
     EndpointRef,
@@ -308,10 +308,13 @@ class LeafSpineTopology:
                 new_lat = latency + link.latency_us
                 if max_total_latency_us is not None and new_lat > max_total_latency_us:
                     continue
-                key = (new_lat, hops + 1, links + (link.id,))
+                key = (new_lat, hops + 1, (*links, link.id))
                 if key < best.get(other, (float("inf"), float("inf"), ())):
                     best[other] = key
-                    heappush(heap, (*key, next(sequence), other, devices + (other,), min(bottleneck, link.capacity_gbps)))
+                    heappush(
+                        heap,
+                        (*key, next(sequence), other, (*devices, other), min(bottleneck, link.capacity_gbps)),
+                    )
         return None
 
     def validate_structure(self) -> tuple[str, ...]:

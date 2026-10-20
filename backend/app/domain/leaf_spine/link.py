@@ -26,7 +26,12 @@ class Link:
             raise ValueError("link kind and state must be valid enums")
         if not _positive_speed(self.capacity_gbps):
             raise ValueError("link capacity must be positive and finite")
-        if not isinstance(self.latency_us, (int, float)) or isinstance(self.latency_us, bool) or not isfinite(self.latency_us) or self.latency_us < 0:
+        if (
+            not isinstance(self.latency_us, (int, float))
+            or isinstance(self.latency_us, bool)
+            or not isfinite(self.latency_us)
+            or self.latency_us < 0
+        ):
             raise ValueError("latency must be nonnegative and finite")
 
 

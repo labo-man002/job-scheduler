@@ -4,7 +4,7 @@ enough to isolate them -- this uses a SAVEPOINT so an inner commit() only
 commits to the savepoint, and the real transaction never lands, regardless
 of how many times a route commits."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import event
@@ -306,8 +306,8 @@ def test_create_reservation_returns_201(api_client, db, seeded_cluster):
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": seeded_cluster["cluster_id"],
         "node_ids": [seeded_cluster["nodes"][0].node_id],
-        "start_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-        "end_period": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "start_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+        "end_period": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "reason": "maintenance",
     })
     assert resp.status_code == 201, resp.text
@@ -322,8 +322,8 @@ def test_create_reservation_node_from_other_cluster_returns_422(api_client, db, 
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": other_cluster.cluster_id,
         "node_ids": [seeded_cluster["nodes"][0].node_id],  # belongs to seeded_cluster, not other_cluster
-        "start_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-        "end_period": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "start_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+        "end_period": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "reason": "maintenance",
     })
     assert resp.status_code == 422
@@ -334,8 +334,8 @@ def test_create_reservation_bad_period_returns_422(api_client, db, seeded_cluste
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": seeded_cluster["cluster_id"],
         "node_ids": [seeded_cluster["nodes"][0].node_id],
-        "start_period": datetime.now(timezone.utc).isoformat(),
-        "end_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+        "start_period": datetime.now(UTC).isoformat(),
+        "end_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
         "reason": "bad",
     })
     assert resp.status_code == 422
@@ -438,8 +438,8 @@ def test_cancel_reservation_returns_200(api_client, db, seeded_cluster):
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": seeded_cluster["cluster_id"],
         "node_ids": [seeded_cluster["nodes"][0].node_id],
-        "start_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-        "end_period": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "start_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+        "end_period": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "reason": "maintenance",
     })
     reservation_id = create_resp.json()["id"]

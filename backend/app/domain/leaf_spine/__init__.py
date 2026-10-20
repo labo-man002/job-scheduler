@@ -6,9 +6,9 @@ from .hardware import DEMO_4X400, PortGroupConfig, SwitchHardwareConfig
 from .link import Link, NetworkPath
 from .topology import LeafSpineTopology
 from .types import (
+    DeviceInUseError,
     DeviceKind,
     DeviceRef,
-    DeviceInUseError,
     DuplicateIdError,
     EndpointOccupiedError,
     EndpointRef,
@@ -25,9 +25,32 @@ from .types import (
 )
 
 __all__ = [
-    "DEMO_4X400", "DeviceKind", "DeviceRef", "DeviceInUseError", "DuplicateIdError", "EndpointOccupiedError",
-    "EndpointRef", "GpuCandidate", "GpuCandidateFinder", "GpuServer", "InconsistentInventoryError",
-    "InvalidConnectionError", "InvalidLinkPropertiesError", "LeafSpineError", "LeafSpineTopology", "Link", "LinkKind",
-    "NetworkInterface", "NetworkPath", "OperationalState", "Port", "PortGroupConfig", "Switch", "SwitchHardwareConfig",
-    "SwitchRole", "UnknownDeviceError", "UnknownEndpointError", "UnknownLinkError",
+    "DEMO_4X400",
+    "DeviceInUseError",
+    "DeviceKind",
+    "DeviceRef",
+    "DuplicateIdError",
+    "EndpointOccupiedError",
+    "EndpointRef",
+    "GpuCandidate",
+    "GpuCandidateFinder",
+    "GpuServer",
+    "InconsistentInventoryError",
+    "InvalidConnectionError",
+    "InvalidLinkPropertiesError",
+    "LeafSpineError",
+    "LeafSpineTopology",
+    "Link",
+    "LinkKind",
+    "NetworkInterface",
+    "NetworkPath",
+    "OperationalState",
+    "Port",
+    "PortGroupConfig",
+    "Switch",
+    "SwitchHardwareConfig",
+    "SwitchRole",
+    "UnknownDeviceError",
+    "UnknownEndpointError",
+    "UnknownLinkError",
 ]

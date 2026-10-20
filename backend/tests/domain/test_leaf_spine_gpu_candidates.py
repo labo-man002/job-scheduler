@@ -3,9 +3,17 @@
 import pytest
 
 from app.domain.leaf_spine import (
-    DeviceKind, EndpointRef, GpuCandidateFinder, GpuServer,
-    InconsistentInventoryError, LeafSpineTopology, OperationalState,
-    PortGroupConfig, Switch, SwitchHardwareConfig, SwitchRole,
+    DeviceKind,
+    EndpointRef,
+    GpuCandidateFinder,
+    GpuServer,
+    InconsistentInventoryError,
+    LeafSpineTopology,
+    OperationalState,
+    PortGroupConfig,
+    Switch,
+    SwitchHardwareConfig,
+    SwitchRole,
 )
 from app.enums import NodeStatus, ResourceStatus, ResourceType
 from tests.factories import make_node

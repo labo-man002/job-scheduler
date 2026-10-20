@@ -24,7 +24,7 @@ Node/ResourceNode objects.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import ClassVar
 
 from app import models
@@ -144,7 +144,7 @@ class Server:
         if institute is None:
             raise InstituteNotFoundError(institute_id)
 
-        period = period or datetime.now(timezone.utc)
+        period = period or datetime.now(UTC)
         month_start, month_end = _month_bounds(period)
 
         quota = (
@@ -358,7 +358,7 @@ class Server:
         month, so this looks up whichever row's period falls in the current
         month, not just any row for institute+resource_type. No row for the
         current month means unrestricted, same as no Quota row at all."""
-        month_start, month_end = _month_bounds(datetime.now(timezone.utc))
+        month_start, month_end = _month_bounds(datetime.now(UTC))
         for resource_type, amount in requirements:
             quota = (
                 self.db.query(models.Quota)
@@ -438,7 +438,7 @@ class Server:
             if resource_nodes:
                 cluster_id = resource_nodes[0].node.cluster_id
             self._build_placer(cluster_id).release_resource(resource_nodes)
-            allocation.end_time = datetime.now(timezone.utc)
+            allocation.end_time = datetime.now(UTC)
             allocation.duration = int((allocation.end_time - allocation.begin_time).total_seconds() // 60)
             allocation.allocation_status = AllocationStatus.RELEASED
         job.status = final_status
@@ -473,7 +473,7 @@ class Server:
         stays institute-agnostic -- Server narrows the candidate node list
         per job instead, since two queued jobs from different institutes can
         have different reservation rights on the very same cluster."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         rows = (
             self.db.query(models.NodeReservation)
             .join(models.Reservation)

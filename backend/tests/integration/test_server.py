@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.exc import OperationalError
@@ -391,7 +391,7 @@ def test_submit_job_with_no_quota_configured_is_unrestricted(db, seeded_cluster)
 def test_quota_blocks_submission_once_exceeded(db, seeded_cluster):
     db.add(models.Quota(
         resource_type=ResourceType.CPU, institute_id=seeded_cluster["institute_id"], limit=4,
-        period=datetime.now(timezone.utc),  # this calendar month -- _check_quota only looks at the current month's row
+        period=datetime.now(UTC),  # this calendar month -- _check_quota only looks at the current month's row
     ))
     db.flush()
     server = Server(db)
@@ -409,7 +409,7 @@ def test_quota_blocks_submission_once_exceeded(db, seeded_cluster):
 
 def test_create_quota_defaults_to_current_month(db, seeded_cluster):
     server = Server(db)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     quota = server.create_quota(institute_id=seeded_cluster["institute_id"], resource_type=ResourceType.CPU, limit=4)
 
@@ -429,7 +429,7 @@ def test_create_quota_upserts_within_the_same_month(db, seeded_cluster):
 
 
 def test_quota_from_a_different_month_does_not_apply(db, seeded_cluster):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     last_month = now.replace(day=1) - timedelta(days=1)  # some day in the previous calendar month
     server = Server(db)
     server.create_quota(institute_id=seeded_cluster["institute_id"], resource_type=ResourceType.CPU, limit=1, period=last_month)
@@ -442,7 +442,7 @@ def test_quota_from_a_different_month_does_not_apply(db, seeded_cluster):
 
 
 def test_create_quota_for_a_future_month(db, seeded_cluster):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     next_month = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
     server = Server(db)
 
@@ -465,8 +465,8 @@ def test_reservation_blocks_other_institutes_but_not_the_owner(db):
 
     reservation = models.Reservation(
         institute_id=reserving_institute.institute_id,
-        start_period=datetime.now(timezone.utc) - timedelta(hours=1),
-        end_period=datetime.now(timezone.utc) + timedelta(hours=1),
+        start_period=datetime.now(UTC) - timedelta(hours=1),
+        end_period=datetime.now(UTC) + timedelta(hours=1),
         reason="test",
     )
     db.add(reservation)
@@ -597,8 +597,8 @@ def test_create_reservation_rejects_unknown_institute(db, seeded_cluster):
             institute_id=999999,
             cluster_id=seeded_cluster["cluster_id"],
             node_ids=[seeded_cluster["nodes"][0].node_id],
-            start_period=datetime.now(timezone.utc),
-            end_period=datetime.now(timezone.utc) + timedelta(hours=1),
+            start_period=datetime.now(UTC),
+            end_period=datetime.now(UTC) + timedelta(hours=1),
             reason="test",
         )
 
@@ -610,8 +610,8 @@ def test_create_reservation_rejects_unknown_cluster(db, seeded_cluster):
             institute_id=seeded_cluster["institute_id"],
             cluster_id=999999,
             node_ids=[seeded_cluster["nodes"][0].node_id],
-            start_period=datetime.now(timezone.utc),
-            end_period=datetime.now(timezone.utc) + timedelta(hours=1),
+            start_period=datetime.now(UTC),
+            end_period=datetime.now(UTC) + timedelta(hours=1),
             reason="test",
         )
 
@@ -623,8 +623,8 @@ def test_create_reservation_rejects_unknown_node(db, seeded_cluster):
             institute_id=seeded_cluster["institute_id"],
             cluster_id=seeded_cluster["cluster_id"],
             node_ids=[999999],
-            start_period=datetime.now(timezone.utc),
-            end_period=datetime.now(timezone.utc) + timedelta(hours=1),
+            start_period=datetime.now(UTC),
+            end_period=datetime.now(UTC) + timedelta(hours=1),
             reason="test",
         )
 
@@ -637,8 +637,8 @@ def test_create_reservation_rejects_node_from_a_different_cluster(db, seeded_clu
             institute_id=seeded_cluster["institute_id"],
             cluster_id=seeded_cluster["cluster_id"],
             node_ids=[other_nodes[0].node_id],  # belongs to other_cluster, not seeded_cluster
-            start_period=datetime.now(timezone.utc),
-            end_period=datetime.now(timezone.utc) + timedelta(hours=1),
+            start_period=datetime.now(UTC),
+            end_period=datetime.now(UTC) + timedelta(hours=1),
             reason="test",
         )
 
@@ -651,8 +651,8 @@ def test_create_reservation_rejects_overlap_with_another_institutes_reservation(
         institute_id=seeded_cluster["institute_id"],
         cluster_id=seeded_cluster["cluster_id"],
         node_ids=[node_id],
-        start_period=datetime.now(timezone.utc),
-        end_period=datetime.now(timezone.utc) + timedelta(hours=2),
+        start_period=datetime.now(UTC),
+        end_period=datetime.now(UTC) + timedelta(hours=2),
         reason="first",
     )
 
@@ -661,8 +661,8 @@ def test_create_reservation_rejects_overlap_with_another_institutes_reservation(
             institute_id=other_institute.institute_id,
             cluster_id=seeded_cluster["cluster_id"],
             node_ids=[node_id],
-            start_period=datetime.now(timezone.utc) + timedelta(hours=1),  # overlaps the first reservation
-            end_period=datetime.now(timezone.utc) + timedelta(hours=3),
+            start_period=datetime.now(UTC) + timedelta(hours=1),  # overlaps the first reservation
+            end_period=datetime.now(UTC) + timedelta(hours=3),
             reason="second",
         )
 
@@ -674,8 +674,8 @@ def test_create_reservation_allows_same_institute_to_reserve_again(db, seeded_cl
         institute_id=seeded_cluster["institute_id"],
         cluster_id=seeded_cluster["cluster_id"],
         node_ids=[node_id],
-        start_period=datetime.now(timezone.utc),
-        end_period=datetime.now(timezone.utc) + timedelta(hours=2),
+        start_period=datetime.now(UTC),
+        end_period=datetime.now(UTC) + timedelta(hours=2),
         reason="first",
     )
 
@@ -683,8 +683,8 @@ def test_create_reservation_allows_same_institute_to_reserve_again(db, seeded_cl
         institute_id=seeded_cluster["institute_id"],
         cluster_id=seeded_cluster["cluster_id"],
         node_ids=[node_id],
-        start_period=datetime.now(timezone.utc) + timedelta(hours=1),  # overlaps, but same institute
-        end_period=datetime.now(timezone.utc) + timedelta(hours=3),
+        start_period=datetime.now(UTC) + timedelta(hours=1),  # overlaps, but same institute
+        end_period=datetime.now(UTC) + timedelta(hours=3),
         reason="second",
     )
     assert second.id is not None
@@ -820,8 +820,8 @@ def test_cancel_reservation_removes_it_and_its_node_reservations(db, seeded_clus
         institute_id=seeded_cluster["institute_id"],
         cluster_id=seeded_cluster["cluster_id"],
         node_ids=[seeded_cluster["nodes"][0].node_id],
-        start_period=datetime.now(timezone.utc),
-        end_period=datetime.now(timezone.utc) + timedelta(hours=1),
+        start_period=datetime.now(UTC),
+        end_period=datetime.now(UTC) + timedelta(hours=1),
         reason="test",
     )
 
@@ -847,8 +847,8 @@ def test_cancelled_reservation_no_longer_blocks_other_institutes(db):
         institute_id=reserving_institute.institute_id,
         cluster_id=cluster.cluster_id,
         node_ids=[nodes[0].node_id],
-        start_period=datetime.now(timezone.utc) - timedelta(hours=1),
-        end_period=datetime.now(timezone.utc) + timedelta(hours=1),
+        start_period=datetime.now(UTC) - timedelta(hours=1),
+        end_period=datetime.now(UTC) + timedelta(hours=1),
         reason="test",
     )
 
