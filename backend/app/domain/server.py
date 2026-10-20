@@ -47,7 +47,15 @@ from app.domain.placer import Placer
 from app.domain.scheduler import PendingJob, Scheduler
 from app.domain.sort_strategy import PrioritySort
 from app.domain.topology import Topology
-from app.enums import AllocationStatus, ClientStatus, JobStatus, NodeStatus, ResourceStatus, ResourceType, TopologyType
+from app.enums import (
+    AllocationStatus,
+    ClientStatus,
+    JobStatus,
+    NodeStatus,
+    ResourceStatus,
+    ResourceType,
+    TopologyType,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -31,7 +31,11 @@ from app.enums import (
     TopologyType,
 )
 
-from .db_factories import IMPOSSIBLY_LARGE_AMOUNT, create_cluster_with_nodes, create_institute_and_client
+from .db_factories import (
+    IMPOSSIBLY_LARGE_AMOUNT,
+    create_cluster_with_nodes,
+    create_institute_and_client,
+)
 
 
 @pytest.fixture
@@ -347,8 +351,23 @@ def test_cancelling_a_queued_job_does_not_block_jobs_behind_it(db, seeded_cluste
 
 def test_jobs_route_to_best_fit_cluster_and_dont_block_each_other(db):
     _, client = create_institute_and_client(db)
-    small_cluster, _ = create_cluster_with_nodes(db, node_count=2, resources_per_node=1, cluster_name="small")  # capacity 2
-    large_cluster, _ = create_cluster_with_nodes(db, node_count=4, resources_per_node=4, cluster_name="large")  # capacity 16
+    server = Server(db)
+
+    # This integration DB can contain clusters from prior local runs. Make
+    # both test clusters larger than every pre-existing cluster so best-fit
+    # routing is deterministic regardless of that baseline data.
+    existing_capacities = [server._cluster_capacity(c.cluster_id) for c in db.query(models.Cluster).all()]
+    small_job_size = max(existing_capacities, default=0) + 1
+    small_capacity = 2 * small_job_size
+    large_job_size = small_capacity + 1
+    large_capacity = 2 * large_job_size
+
+    small_cluster, _ = create_cluster_with_nodes(
+        db, node_count=1, resources_per_node=small_capacity, cluster_name="small"
+    )
+    large_cluster, _ = create_cluster_with_nodes(
+        db, node_count=1, resources_per_node=large_capacity, cluster_name="large"
+    )
 
     def submit(amount):
         job = server.submit_job(client_id=client.client_id, requirements=[(ResourceType.CPU, amount)], priority=Priority.NORMAL, duration=10)
@@ -359,23 +378,21 @@ def test_jobs_route_to_best_fit_cluster_and_dont_block_each_other(db):
         allocation = server.get_allocation_details(job.job_id)
         return allocation.allocation_nodes[0].resource_node.node.cluster_id
 
-    server = Server(db)
-
-    small_job = submit(1)
-    large_job = submit(10)
+    small_job = submit(small_job_size)
+    large_job = submit(large_job_size)
     assert small_job.status == JobStatus.RUNNING
     assert large_job.status == JobStatus.RUNNING
     assert cluster_id_of(small_job) == small_cluster.cluster_id
     assert cluster_id_of(large_job) == large_cluster.cluster_id
 
-    # Fill the small cluster's last unit and queue a job that can't fit there --
-    # this must NOT block the large cluster's independent queue.
-    fill_small = submit(1)
+    # Fill the small cluster and queue another job there. This must NOT block
+    # a job routed to the large cluster's independent queue.
+    fill_small = submit(small_job_size)
     assert fill_small.status == JobStatus.RUNNING
-    stuck_on_small = submit(1)
+    stuck_on_small = submit(small_job_size)
     assert stuck_on_small.status == JobStatus.QUEUED
 
-    another_large_job = submit(4)
+    another_large_job = submit(large_job_size)
     assert another_large_job.status == JobStatus.RUNNING
     assert cluster_id_of(another_large_job) == large_cluster.cluster_id
 

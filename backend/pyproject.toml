@@ -1,8 +1,11 @@
+
+
 [tool.ruff]
-line-length = 145  # matches actual longest existing line (142) plus headroom, not an arbitrary default
+line-length = 145
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "RUF"]
 ignore = [
-    "N999",  # filenames here are deliberately camelCase for models/enums, not snake_case -- see CLAUDE.md
+    "UP042",  # Keep compatibility with Python 3.10
+    "N999",   # Existing filenames use camelCase
 ]
