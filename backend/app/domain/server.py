@@ -24,8 +24,9 @@ Node/ResourceNode objects.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import ClassVar
-from datetime import datetime, timedelta, timezone
+
 from app import models
 from app.domain.exceptions import (
     ClientNotFoundError,
