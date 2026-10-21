@@ -26,6 +26,9 @@ classDiagram
   class Switch
   class Port
   class GpuServer
+  class NetworkEndpoint {
+    +endpoint_id
+  }
   class NetworkInterface
   class Link
   class EndpointRef
@@ -35,6 +38,8 @@ classDiagram
   Switch --> SwitchHardwareConfig
   Switch *-- Port
   GpuServer *-- NetworkInterface
+  NetworkEndpoint <|-- Port
+  NetworkEndpoint <|-- NetworkInterface
   LeafSpineTopology o-- Switch
   LeafSpineTopology o-- GpuServer
   LeafSpineTopology *-- Link
@@ -100,14 +105,18 @@ candidates = GpuCandidateFinder(fabric).find_candidates(
 
 ## API and invariants
 
-- `add_link(a, b, *, capacity_gbps, latency_us, link_id=None)` validates endpoints,
-  role compatibility, capacity, latency and physical occupancy before constructing
-  the frozen `Link`. Duplicate IDs or invalid registrations raise typed errors.
+- `validate_connection(a, b, *, capacity_gbps, latency_us, link_id=None)` checks
+  endpoints, role compatibility, capacity, latency, physical occupancy and link ID
+  without mutating the topology; it returns the resulting `LinkKind`.
+- `add_link(a, b, *, capacity_gbps, latency_us, link_id=None)` calls
+  `validate_connection()` before constructing and registering the frozen `Link`.
+  Duplicate IDs or invalid registrations raise typed errors.
 - `remove_link()` frees both endpoints and graph indexes; removing a connected
   device is rejected, not cascaded.
 - `set_link_state`, `set_switch_state`, `set_port_state`, `set_server_state`,
   `set_nic_state` replace immutable snapshots under topology control.
-- `switches()`, `servers()`, `links()`, `get_neighbors()`,
+- `switches()`, `servers()`, `links()`, `get_neighbors()` (neighbor switch ID and
+  connecting `Link` pairs),
   `connected_servers()` and `find_link_by_endpoint()` do not expose mutable
   internal registries.
 - `find_path()` returns `NetworkPath | None` for known endpoints. It uses

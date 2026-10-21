@@ -1,6 +1,6 @@
 """Standalone leaf/spine fabric model; intentionally not wired into Placer yet."""
 
-from .devices import GpuServer, NetworkInterface, Port, Switch
+from .devices import GpuServer, NetworkEndpoint, NetworkInterface, Port, Switch
 from .gpu_candidates import GpuCandidate, GpuCandidateFinder
 from .hardware import DEMO_4X400, PortGroupConfig, SwitchHardwareConfig
 from .link import Link, NetworkPath
@@ -43,6 +43,7 @@ __all__ = [
     "Link",
     "LinkKind",
     "NetworkInterface",
+    "NetworkEndpoint",
     "NetworkPath",
     "OperationalState",
     "Port",

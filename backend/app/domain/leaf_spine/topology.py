@@ -140,10 +140,11 @@ class LeafSpineTopology:
                 return LinkKind.SERVER_LEAF
         raise InvalidConnectionError(f"invalid two-tier connection: {a} <-> {b}")
 
-    def add_link(
+    def validate_connection(
         self, a: EndpointRef, b: EndpointRef, *, capacity_gbps: float,
         latency_us: float, link_id: str | None = None,
-    ) -> Link:
+    ) -> LinkKind:
+        """Validate a proposed physical connection without changing the topology."""
         if a == b:
             raise InvalidConnectionError("an endpoint cannot connect to itself")
         cap_a, _ = self._resolve_endpoint(a)
@@ -165,6 +166,15 @@ class LeafSpineTopology:
             raise InvalidLinkPropertiesError("link ID must be nonempty")
         if link_id in self._links:
             raise DuplicateIdError(f"link {link_id} already exists")
+        return kind
+
+    def add_link(
+        self, a: EndpointRef, b: EndpointRef, *, capacity_gbps: float,
+        latency_us: float, link_id: str | None = None,
+    ) -> Link:
+        kind = self.validate_connection(
+            a, b, capacity_gbps=capacity_gbps, latency_us=latency_us, link_id=link_id
+        )
         generated = link_id is None
         if generated:
             while f"link-{self._next_link_id}" in self._links:
@@ -241,17 +251,17 @@ class LeafSpineTopology:
                 return False
         return True
 
-    def get_neighbors(self, switch_id: str, *, operational_only: bool = False) -> tuple[str, ...]:
+    def get_neighbors(self, switch_id: str, *, operational_only: bool = False) -> tuple[tuple[str, Link], ...]:
         self.get_switch(switch_id)
         ref = DeviceRef(DeviceKind.SWITCH, switch_id)
-        neighbors = set()
+        neighbors = []
         for link_id in self._incident_links[ref]:
             link = self._links[link_id]
             if link.kind != LinkKind.LEAF_SPINE or (operational_only and not self._operational(link)):
                 continue
             other = link.b.device if link.a.device == ref else link.a.device
-            neighbors.add(other.device_id)
-        return tuple(sorted(neighbors))
+            neighbors.append((other.device_id, link))
+        return tuple(sorted(neighbors, key=lambda neighbor: (neighbor[0], neighbor[1].id)))
 
     def connected_servers(self, leaf_id: str, *, operational_only: bool = False) -> tuple[str, ...]:
         switch = self.get_switch(leaf_id)

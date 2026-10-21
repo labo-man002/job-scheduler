@@ -1,5 +1,6 @@
 """Immutable runtime device snapshots; a switch generates and owns its ports."""
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 
 from .hardware import SwitchHardwareConfig, _positive_speed
@@ -11,11 +12,24 @@ def _validate_state(state):
         raise ValueError("state must be an OperationalState")
 
 
+class NetworkEndpoint(ABC):
+    """Common contract for physical network endpoints that can terminate links."""
+
+    @property
+    @abstractmethod
+    def endpoint_id(self) -> str:
+        """Return the endpoint identifier used by the fabric topology."""
+
+
 @dataclass(frozen=True, slots=True)
-class Port:
+class Port(NetworkEndpoint):
     number: int
     capacity_gbps: float
     state: OperationalState = OperationalState.UP
+
+    @property
+    def endpoint_id(self) -> str:
+        return f"p{self.number}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,10 +72,14 @@ class Switch:
 
 
 @dataclass(frozen=True, slots=True)
-class NetworkInterface:
+class NetworkInterface(NetworkEndpoint):
     id: str
     capacity_gbps: float
     state: OperationalState = OperationalState.UP
+
+    @property
+    def endpoint_id(self) -> str:
+        return self.id
 
 
 @dataclass(frozen=True, slots=True)

@@ -151,8 +151,8 @@ def test_down_links_remain_physical_and_occupied():
     fabric = network()
     fabric.set_link_state("L1", OperationalState.DOWN)
     assert fabric.find_link_by_endpoint(port("leaf-A", 1)).state == OperationalState.DOWN
-    assert fabric.get_neighbors("leaf-A") == ("spine-1", "spine-2")
-    assert fabric.get_neighbors("leaf-A", operational_only=True) == ("spine-2",)
+    assert [(neighbor, link.id) for neighbor, link in fabric.get_neighbors("leaf-A")] == [("spine-1", "L1"), ("spine-2", "L3")]
+    assert [(neighbor, link.id) for neighbor, link in fabric.get_neighbors("leaf-A", operational_only=True)] == [("spine-2", "L3")]
     with pytest.raises(EndpointOccupiedError):
         fabric.add_link(port("leaf-A", 1), port("spine-2", 3), capacity_gbps=200, latency_us=1)
     fabric._assert_indexes_consistent()
@@ -162,15 +162,18 @@ def test_removal_and_parallel_links_update_indexes():
     fabric = network()
     link = fabric.add_link(port("leaf-A", 4), port("spine-1", 3), capacity_gbps=100, latency_us=0)
     assert link.id == "link-1"
-    assert fabric.get_neighbors("leaf-A") == ("spine-1", "spine-2")
+    expected = [("spine-1", "L1"), ("spine-1", "link-1"), ("spine-2", "L3")]
+    assert [(neighbor, link.id) for neighbor, link in fabric.get_neighbors("leaf-A")] == expected
     with pytest.raises(DeviceInUseError):
         fabric.remove_switch("leaf-A")
     with pytest.raises(DeviceInUseError):
         fabric.remove_server("gpu-A")
     fabric.remove_link("L1")
-    assert fabric.get_neighbors("leaf-A") == ("spine-1", "spine-2")
+    assert [(neighbor, link.id) for neighbor, link in fabric.get_neighbors("leaf-A")] == [
+        ("spine-1", "link-1"), ("spine-2", "L3")
+    ]
     fabric.remove_link("link-1")
-    assert fabric.get_neighbors("leaf-A") == ("spine-2",)
+    assert [(neighbor, link.id) for neighbor, link in fabric.get_neighbors("leaf-A")] == [("spine-2", "L3")]
     assert fabric.find_link_by_endpoint(port("leaf-A", 1)) is None
     assert fabric.find_link_by_endpoint(port("leaf-A", 4)) is None
     with pytest.raises(UnknownLinkError):
