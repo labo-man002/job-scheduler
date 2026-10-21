@@ -4,7 +4,13 @@ the transaction and rolls it back, so nothing here needs its own cleanup.
 """
 
 from app import models
-from app.enums import ClientStatus, NodeStatus, ResourceStatus, ResourceType, TopologyType
+from app.enums import (
+    ClientStatus,
+    NodeStatus,
+    ResourceStatus,
+    ResourceType,
+    TopologyType,
+)
 
 # An amount no real cluster (fixture or seeded demo data, since _best_fit_cluster
 # scans every cluster in the database) could ever satisfy -- used by both

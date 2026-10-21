@@ -13,8 +13,13 @@ from sqlalchemy.exc import OperationalError
 from app.database import SessionLocal, engine, get_db
 from app.main import app
 
-from .db_factories import IMPOSSIBLY_LARGE_AMOUNT, create_cluster_with_nodes, create_institute_and_client
+from .db_factories import (
+    IMPOSSIBLY_LARGE_AMOUNT,
+    create_cluster_with_nodes,
+    create_institute_and_client,
+)
 
+UTC = timezone.utc
 
 @pytest.fixture
 def db():
@@ -306,8 +311,8 @@ def test_create_reservation_returns_201(api_client, db, seeded_cluster):
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": seeded_cluster["cluster_id"],
         "node_ids": [seeded_cluster["nodes"][0].node_id],
-        "start_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-        "end_period": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "start_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+        "end_period": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "reason": "maintenance",
     })
     assert resp.status_code == 201, resp.text
@@ -322,8 +327,8 @@ def test_create_reservation_node_from_other_cluster_returns_422(api_client, db, 
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": other_cluster.cluster_id,
         "node_ids": [seeded_cluster["nodes"][0].node_id],  # belongs to seeded_cluster, not other_cluster
-        "start_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-        "end_period": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "start_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+        "end_period": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "reason": "maintenance",
     })
     assert resp.status_code == 422
@@ -334,8 +339,8 @@ def test_create_reservation_bad_period_returns_422(api_client, db, seeded_cluste
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": seeded_cluster["cluster_id"],
         "node_ids": [seeded_cluster["nodes"][0].node_id],
-        "start_period": datetime.now(timezone.utc).isoformat(),
-        "end_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+        "start_period": datetime.now(UTC).isoformat(),
+        "end_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
         "reason": "bad",
     })
     assert resp.status_code == 422
@@ -438,8 +443,8 @@ def test_cancel_reservation_returns_200(api_client, db, seeded_cluster):
         "institute_id": seeded_cluster["institute_id"],
         "cluster_id": seeded_cluster["cluster_id"],
         "node_ids": [seeded_cluster["nodes"][0].node_id],
-        "start_period": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-        "end_period": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "start_period": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+        "end_period": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "reason": "maintenance",
     })
     reservation_id = create_resp.json()["id"]

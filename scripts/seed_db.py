@@ -38,10 +38,10 @@ RESOURCE_MIX = [
 ]
 
 CLUSTERS = [
-    dict(cluster_name="ring-a", topology_type=TopologyType.RING, dimension=[8], wrap=True),
-    dict(cluster_name="torus2d-a", topology_type=TopologyType.TORUS_2D, dimension=[4, 4], wrap=True),
-    dict(cluster_name="mesh2d-a", topology_type=TopologyType.MESH_2D, dimension=[3, 5], wrap=False),
-    dict(cluster_name="torus3d-a", topology_type=TopologyType.TORUS_3D, dimension=[3, 3, 3], wrap=True),
+    {"cluster_name": "ring-a", "topology_type": TopologyType.RING, "dimension": [8], "wrap": True},
+    {"cluster_name": "torus2d-a", "topology_type": TopologyType.TORUS_2D, "dimension": [4, 4], "wrap": True},
+    {"cluster_name": "mesh2d-a", "topology_type": TopologyType.MESH_2D, "dimension": [3, 5], "wrap": False},
+    {"cluster_name": "torus3d-a", "topology_type": TopologyType.TORUS_3D, "dimension": [3, 3, 3], "wrap": True},
 ]
 
 
