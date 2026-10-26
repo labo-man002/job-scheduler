@@ -74,21 +74,35 @@ The grid-based topology used by Pack/Spread is not enough to represent a GPU dat
 
 This was introduced in [PR #86](https://github.com/labo-man002/job-scheduler/pull/86) and is documented in [GPU leaf–spine design](docs/gpu-leaf-spine.md). It **does not yet** persist fabric state, reserve bandwidth, model contention, or influence scheduler/placer allocation decisions.
 
-## One topology, two placement decisions
+## A leaf–spine routing example
 
-The [placement tests](backend/tests/domain/test_place_algorithm.py) use an eight-node ring with **node 0 already occupied**. Both policies see the same seven free candidates, but make different choices:
+The [fabric contract test](backend/tests/domain/test_leaf_spine.py) builds two leaf switches, two spines, and two GPU servers with six explicit links. A path query from `leaf-A` to `gpu-B` illustrates the difference between *physical connectivity* and a currently usable route:
 
 <p align="center">
-  <img src="docs/diagrams/pack-vs-spread.svg" width="860" alt="On an eight-node ring with node 0 occupied, Pack selects node 1 one hop away while Spread selects node 4 four hops away" />
+  <img src="docs/diagrams/leaf-spine-routing.svg" width="920" alt="Two leaf switches connected through two spines. The healthy leaf-A-to-gpu-B route uses spine-1 for 5 microseconds; when link L1 goes down it reroutes through spine-2 for 7 microseconds." />
 </p>
 
-**Pack** selects node 1, one hop from the occupied node (node 7 is equally close; the lower node ID wins). **Spread** selects node 4, four hops away. These are deterministic placement choices from the current [policy implementation](backend/app/domain/place_algorithm.py), **not** measured throughput or locality improvements.
+- **Initially:** `L1 → L2 → L6`, total nominal latency **5 μs**; the 100 Gb/s GPU access link is the bottleneck.
+- **After `L1` goes DOWN:** `L3 → L4 → L6`, total nominal latency **7 μs**. The failed link remains physically connected and cannot be reused as an empty port.
+- **If `L3` also goes DOWN:** no usable route remains. A 4 μs maximum-latency bound or a 150 Gb/s minimum-link-capacity bound also rejects the initial route.
 
-To exercise the same policies and tie-breaking rules:
+This demonstrates deterministic **path feasibility and rerouting**, not bandwidth reservations, contention modeling, or GPU placement by the live scheduler. The [GPU candidate adapter](backend/tests/domain/test_leaf_spine_gpu_candidates.py) separately filters available GPU units against these network constraints without modifying allocation state.
+
+## A scheduling example
+
+For the same set of submitted jobs, FIFO preserves arrival order; the selectable fixed-priority policy orders **URGENT → HIGH → NORMAL → LOW** (with FIFO tie-breaking within a priority). Both behaviors are exercised by the [sort-strategy tests](backend/tests/domain/test_sort_strategy.py).
+
+<p align="center">
+  <img src="docs/diagrams/scheduling-order.svg" width="920" alt="Jobs J1 low, J2 urgent, J3 normal and J4 high arrive in that order. FIFO preserves arrival order; fixed priority orders J2, J4, J3, J1." />
+</p>
+
+**Queue order is not allocation.** In a separate [integration test](backend/tests/integration/test_server.py), a job consumes all eight CPUs in a four-node cluster. A later two-CPU job stays `QUEUED` until the first job completes; released resources then allow the queued job to become `RUNNING`. That is actual lifecycle behavior, not a simulated execution clock.
+
+Reproduce the policy, fabric, and lifecycle tests after [setting up the backend](#1-run-the-backend):
 
 ```bash
 cd backend
-.venv/bin/pytest -q tests/domain/test_place_algorithm.py
+.venv/bin/pytest -q tests/domain/test_sort_strategy.py tests/domain/test_leaf_spine.py tests/domain/test_leaf_spine_gpu_candidates.py tests/integration/test_server.py
 ```
 
 ## Engineering choices and their tradeoffs
