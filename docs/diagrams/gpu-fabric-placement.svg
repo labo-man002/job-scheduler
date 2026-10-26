@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="604" viewBox="0 0 1100 604" role="img" aria-labelledby="title desc">
+  <title id="title">Illustrative GPU cluster with NVSwitch scale-up and leaf-spine scale-out</title>
+  <desc id="desc">Two spine switches connect two leaf switches. Leaf 1 attaches GPU servers A and B, and Leaf 2 attaches server C. Each server has four GPUs connected to an NVSwitch via NVLink and one network interface. Server A has four free GPUs, server B has two free GPUs, and server C has two free GPUs. This is a proposed placement scenario, not an implemented feature of the project.</desc>
+  <rect x="8" y="8" width="1084" height="588" rx="18" fill="#f8fafc" stroke="#d5dde7"/>
+  <g font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <text x="550" y="37" font-size="21" font-weight="700" fill="#0f172a">GPU placement spans two connectivity domains</text>
+    <text x="550" y="61" font-size="13" fill="#475569">Illustrative hardware · NVLink / NVSwitch within servers · leaf–spine fabric between servers</text>
+  </g>
+  <!-- Scale-out network: two spines, two leaves, and NIC links to three servers. -->
+  <g fill="none" stroke="#92a4b8" stroke-width="4" stroke-linecap="round">
+    <path d="M487 156 L345 233"/>
+    <path d="M487 156 L755 233"/>
+    <path d="M652 156 L345 233"/>
+    <path d="M652 156 L755 233"/>
+    <path d="M345 273 L289 390"/>
+    <path d="M345 273 L634 390"/>
+    <path d="M755 273 L979 390"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" text-anchor="middle">
+    <rect x="429" y="116" width="116" height="42" rx="10" fill="#334155"/>
+    <rect x="594" y="116" width="116" height="42" rx="10" fill="#334155"/>
+    <text x="487" y="142" fill="#ffffff">Spine 1</text><text x="652" y="142" fill="#ffffff">Spine 2</text>
+    <rect x="287" y="232" width="116" height="42" rx="10" fill="#4d6682"/>
+    <rect x="697" y="232" width="116" height="42" rx="10" fill="#4d6682"/>
+    <text x="345" y="258" fill="#ffffff">Leaf 1</text><text x="755" y="258" fill="#ffffff">Leaf 2</text>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <!-- Server cards and names. -->
+    <rect x="45" y="333" width="310" height="217" rx="13" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+    <rect x="390" y="333" width="310" height="217" rx="13" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+    <rect x="735" y="333" width="310" height="217" rx="13" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+    <g fill="#0f172a" font-size="15" font-weight="700">
+      <text x="64" y="359">Server A</text>
+      <text x="409" y="359">Server B</text>
+      <text x="754" y="359">Server C</text>
+    </g>
+    <g font-size="12" font-weight="700" text-anchor="end">
+      <text x="336" y="359" fill="#0d8069">4 free</text>
+      <text x="681" y="359" fill="#a66b16">2 free / 2 busy</text>
+      <text x="1026" y="359" fill="#a66b16">2 free / 2 busy</text>
+    </g>
+    <!-- NVLink edges from GPUs into each server's NVSwitch. -->
+    <g fill="none" stroke="#5b83cb" stroke-width="2.5" stroke-linecap="round">
+      <path d="M100 465 L185 420 M167 465 L185 420 M234 465 L185 420 M301 465 L185 420"/>
+      <path d="M445 465 L530 420 M512 465 L530 420 M579 465 L530 420 M646 465 L530 420"/>
+      <path d="M790 465 L875 420 M857 465 L875 420 M924 465 L875 420 M991 465 L875 420"/>
+    </g>
+    <!-- NVSwitch devices, NICs, and labels. NICs have their own network link, not an NVLink edge. -->
+    <g font-size="13" font-weight="700" text-anchor="middle">
+      <g fill="#dbeafe" stroke="#6f99d6" stroke-width="1.5">
+        <rect x="111" y="390" width="148" height="30" rx="8"/>
+        <rect x="456" y="390" width="148" height="30" rx="8"/>
+        <rect x="801" y="390" width="148" height="30" rx="8"/>
+      </g>
+      <g fill="#274c86">
+        <text x="185" y="410">NVSwitch A</text>
+        <text x="530" y="410">NVSwitch B</text>
+        <text x="875" y="410">NVSwitch C</text>
+      </g>
+      <g fill="#f1f5f9" stroke="#94a3b8">
+        <rect x="264" y="390" width="50" height="30" rx="7"/>
+        <rect x="609" y="390" width="50" height="30" rx="7"/>
+        <rect x="954" y="390" width="50" height="30" rx="7"/>
+      </g>
+      <g fill="#475569"><text x="289" y="409">NIC</text><text x="634" y="409">NIC</text><text x="979" y="409">NIC</text></g>
+    </g>
+    <!-- Free GPUs (teal) and busy GPUs (gray). -->
+    <g stroke-width="1.5">
+      <g fill="#d1fae5" stroke="#52a991">
+        <rect x="73" y="465" width="54" height="44" rx="7"/>
+        <rect x="140" y="465" width="54" height="44" rx="7"/>
+        <rect x="207" y="465" width="54" height="44" rx="7"/>
+        <rect x="274" y="465" width="54" height="44" rx="7"/>
+        <rect x="418" y="465" width="54" height="44" rx="7"/>
+        <rect x="485" y="465" width="54" height="44" rx="7"/>
+        <rect x="763" y="465" width="54" height="44" rx="7"/>
+        <rect x="830" y="465" width="54" height="44" rx="7"/>
+      </g>
+      <g fill="#e2e8f0" stroke="#94a3b8">
+        <rect x="552" y="465" width="54" height="44" rx="7"/>
+        <rect x="619" y="465" width="54" height="44" rx="7"/>
+        <rect x="897" y="465" width="54" height="44" rx="7"/>
+        <rect x="964" y="465" width="54" height="44" rx="7"/>
+      </g>
+    </g>
+    <g font-size="12" font-weight="700" text-anchor="middle" fill="#334155">
+      <text x="100" y="492">G0</text><text x="167" y="492">G1</text><text x="234" y="492">G2</text><text x="301" y="492">G3</text>
+      <text x="445" y="492">G0</text><text x="512" y="492">G1</text><text x="579" y="492">G2</text><text x="646" y="492">G3</text>
+      <text x="790" y="492">G0</text><text x="857" y="492">G1</text><text x="924" y="492">G2</text><text x="991" y="492">G3</text>
+    </g>
+    <g fill="#64748b" font-size="11" text-anchor="middle">
+      <text x="200" y="531">One NVSwitch domain</text>
+      <text x="545" y="531">One NVSwitch domain</text>
+      <text x="890" y="531">One NVSwitch domain</text>
+    </g>
+    <g font-size="12" text-anchor="middle" fill="#475569">
+      <rect x="231" y="570" width="15" height="15" rx="3" fill="#d1fae5" stroke="#52a991"/>
+      <text x="297" y="582">Available GPU</text>
+      <rect x="402" y="570" width="15" height="15" rx="3" fill="#e2e8f0" stroke="#94a3b8"/>
+      <text x="466" y="582">Already busy</text>
+      <path d="M568 578 H597" stroke="#5b83cb" stroke-width="3"/>
+      <text x="634" y="582">NVLink</text>
+      <path d="M707 578 H736" stroke="#92a4b8" stroke-width="3"/>
+      <text x="801" y="582">Network link</text>
+    </g>
+  </g>
+</svg>

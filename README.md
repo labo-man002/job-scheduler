@@ -74,6 +74,56 @@ The grid-based topology used by Pack/Spread is not enough to represent a GPU dat
 
 This was introduced in [PR #86](https://github.com/labo-man002/job-scheduler/pull/86) and is documented in [GPU leaf–spine design](docs/gpu-leaf-spine.md). It **does not yet** persist fabric state, reserve bandwidth, model contention, or influence scheduler/placer allocation decisions.
 
+## A GPU placement and scheduling thought experiment
+
+> **Proposed experiment — not implemented end to end.** The hardware and job choices below illustrate the direction of this project. The current code does **not** model NVLink/NVSwitch connectivity or use workload communication patterns to select GPU placements.
+
+Consider two leaf switches connected to two spines, with three GPU servers. Inside each server, four GPUs share an NVSwitch domain through NVLink. Server **A has four free GPUs**; servers **B and C each have two free GPUs**, with their other two GPUs already busy.
+
+<p align="center">
+  <img src="docs/diagrams/gpu-fabric-placement.svg" width="1100" alt="Illustrative two-spine, two-leaf GPU fabric with three NVSwitch-equipped servers: A has four available GPUs, B and C have two available GPUs each." />
+</p>
+
+For a four-GPU job, all of these placements fit the available resource counts—but cross different communication boundaries:
+
+| Feasible choice | Communication boundary | What changes |
+| --- | --- | --- |
+| **A: 4 GPUs** | One NVSwitch domain | GPU-to-GPU communication can remain within the server's NVLink/NVSwitch fabric. |
+| **A: 2 + B: 2** | Two servers under Leaf 1 | Communication between servers requires their NICs and the leaf network, even without crossing to another leaf. |
+| **B: 2 + C: 2** | Servers under different leaves | Inter-server communication traverses the leaf–spine–leaf fabric. Network feasibility and shared-link costs become relevant. |
+
+### Why job order matters
+
+Suppose two institutes each have a **four-GPU concurrent quota**:
+
+- **J1 · Research:** four GPUs, communication-heavy collective workload; prefers a single NVSwitch domain.
+- **J2 · Batch:** four independent GPU workers; can tolerate placement across servers.
+
+Both jobs are admissible under their respective quotas. Now compare two *hypothetical* scheduler–placer decision sequences:
+
+| Decision sequence | First allocation | Second allocation | Consequence |
+| --- | --- | --- | --- |
+| **J1 first, locality-aware** | J1 gets A's four GPUs | J2 gets B:2 + C:2 | The communication-heavy job stays NVSwitch-local. |
+| **J2 first, greedy single-server fit** | J2 gets A's four GPUs | J1 gets B:2 + C:2 | The communication-heavy job must communicate over the scale-out fabric. |
+
+Both choices allocate eight GPUs. What differs is **which workload pays for inter-server communication**. If J1 instead has a hard communication-locality requirement, a future topology-aware placer might leave it `QUEUED` in the second sequence **despite four free GPUs**: aggregate capacity exists, but no feasible four-GPU group remains. Actual performance would depend on topology, link bandwidth, contention, communication pattern, and the application—not just hop count.
+
+Quota enforcement is a separate admission decision. Once J1 has four GPUs `RUNNING`, another **two-GPU Research request** would exceed that institute's `4 + 2 > 4` live concurrency limit and be **rejected at submission**, rather than queued for placement. A quota is not a cumulative GPU-hour budget.
+
+The implemented building blocks are [per-unit GPU availability](backend/app/domain/placer.py), [institute quotas](backend/app/domain/server.py), and [read-only leaf–spine path and GPU-candidate queries](docs/gpu-leaf-spine.md), with tests for [fabric behavior](backend/tests/domain/test_leaf_spine.py), [candidate filtering](backend/tests/domain/test_leaf_spine_gpu_candidates.py), and [quota enforcement](backend/tests/integration/test_server.py). Connecting these to NVSwitch-aware, communication-aware placement is future work.
+
+## Engineering choices and their tradeoffs
+
+| Choice | Consequence and evidence |
+| --- | --- |
+| **Separate scheduling from placement** | Queue order (`when`) and topology-aware resource selection (`where`) can change independently. [Architecture](docs/architecture.md) · [Policy tests](backend/tests/domain/test_placer.py) |
+| **Track individual resource units** | Allocations identify exact resource rows, including jobs spanning multiple nodes. [Placement tests](backend/tests/domain/test_placer.py) |
+| **Use transaction-scoped resource state** | The server locks node/resource rows before placement, protecting against conflicting allocation attempts; this is a design safeguard, not a high-concurrency benchmark. [Implementation](backend/app/domain/server.py) |
+| **Make queue semantics explicit** | Genuine capacity failures stop strict-order draining; reservation-only blocking has separate handling. Backfilling is not silently assumed. [Decisions](docs/decisions.md) · [Integration tests](backend/tests/integration/test_server.py) |
+| **Preserve physical vs. operational fabric state** | A DOWN link becomes unusable for pathfinding but still occupies its physical endpoints. Invalid link changes leave the topology unchanged. [Fabric contract tests](backend/tests/domain/test_leaf_spine.py) |
+
+The [test suite](backend/tests/) also covers resource release, quota enforcement, reservation conflicts, deterministic path tie-breaking, and read-only GPU candidate filtering. These are intentionally narrower claims than production-scale resilience or validated distributed-training performance.
+
 ## A look at the interface
 
 | Clusters | Jobs |
