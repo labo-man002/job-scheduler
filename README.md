@@ -93,7 +93,12 @@ This was introduced in [PR #86](https://github.com/labo-man002/job-scheduler/pul
 
 ## Getting started
 
-You will need **Python 3.10+**, **PostgreSQL**, and **Node.js / pnpm**. The CI configuration uses PostgreSQL 14, Node.js 24, and the pnpm version pinned in [`package.json`](package.json).
+You will need **Python 3.10**, **PostgreSQL**, and **Node.js / pnpm**. The CI configuration uses PostgreSQL 14, Node.js 24, and the pnpm version pinned in [`package.json`](package.json).
+
+```bash
+git clone https://github.com/labo-man002/job-scheduler.git
+cd job-scheduler
+```
 
 ### 1. Run the backend
 
