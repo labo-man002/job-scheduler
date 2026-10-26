@@ -74,6 +74,35 @@ The grid-based topology used by Pack/Spread is not enough to represent a GPU dat
 
 This was introduced in [PR #86](https://github.com/labo-man002/job-scheduler/pull/86) and is documented in [GPU leaf–spine design](docs/gpu-leaf-spine.md). It **does not yet** persist fabric state, reserve bandwidth, model contention, or influence scheduler/placer allocation decisions.
 
+## One topology, two placement decisions
+
+The [placement tests](backend/tests/domain/test_place_algorithm.py) use an eight-node ring with **node 0 already occupied**. Both policies see the same seven free candidates, but make different choices:
+
+<p align="center">
+  <img src="docs/diagrams/pack-vs-spread.svg" width="860" alt="On an eight-node ring with node 0 occupied, Pack selects node 1 one hop away while Spread selects node 4 four hops away" />
+</p>
+
+**Pack** selects node 1, one hop from the occupied node (node 7 is equally close; the lower node ID wins). **Spread** selects node 4, four hops away. These are deterministic placement choices from the current [policy implementation](backend/app/domain/place_algorithm.py), **not** measured throughput or locality improvements.
+
+To exercise the same policies and tie-breaking rules:
+
+```bash
+cd backend
+.venv/bin/pytest -q tests/domain/test_place_algorithm.py
+```
+
+## Engineering choices and their tradeoffs
+
+| Choice | Consequence and evidence |
+| --- | --- |
+| **Separate scheduling from placement** | Queue order (`when`) and topology-aware resource selection (`where`) can change independently. [Architecture](docs/architecture.md) · [Policy tests](backend/tests/domain/test_placer.py) |
+| **Track individual resource units** | Allocations identify exact resource rows, including jobs spanning multiple nodes. [Placement tests](backend/tests/domain/test_placer.py) |
+| **Use transaction-scoped resource state** | The server locks node/resource rows before placement, protecting against conflicting allocation attempts; this is a design safeguard, not a high-concurrency benchmark. [Implementation](backend/app/domain/server.py) |
+| **Make queue semantics explicit** | Genuine capacity failures stop strict-order draining; reservation-only blocking has separate handling. Backfilling is not silently assumed. [Decisions](docs/decisions.md) · [Integration tests](backend/tests/integration/test_server.py) |
+| **Preserve physical vs. operational fabric state** | A DOWN link becomes unusable for pathfinding but still occupies its physical endpoints. Invalid link changes leave the topology unchanged. [Fabric contract tests](backend/tests/domain/test_leaf_spine.py) |
+
+The [test suite](backend/tests/) also covers resource release, quota enforcement, reservation conflicts, deterministic path tie-breaking, and read-only GPU candidate filtering. These are intentionally narrower claims than production-scale resilience or validated distributed-training performance.
+
 ## A look at the interface
 
 | Clusters | Jobs |
