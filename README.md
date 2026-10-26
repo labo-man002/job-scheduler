@@ -76,7 +76,7 @@ This was introduced in [PR #86](https://github.com/labo-man002/job-scheduler/pul
 
 ## A GPU placement and scheduling thought experiment
 
-> **Proposed experiment — not implemented end to end.** The hardware and job choices below illustrate the direction of this project. The current code does **not** model NVLink/NVSwitch connectivity or use workload communication patterns to select GPU placements.
+> **Proposed experiment** The hardware and job choices below illustrate the direction of this project. The current code does **not** model NVLink/NVSwitch connectivity or use workload communication patterns to select GPU placements.
 
 Consider two leaf switches connected to two spines, with three GPU servers. Inside each server, four GPUs share an NVSwitch domain through NVLink. Server **A has four free GPUs**; servers **B and C each have two free GPUs**, with their other two GPUs already busy.
 
