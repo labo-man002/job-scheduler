@@ -51,8 +51,8 @@ The distinction in the last row matters: GPU resources can be requested and allo
 flowchart TD
     UI["React UI / API clients"] --> R["FastAPI routers"]
     R --> S["Server · admission, routing, lifecycle"]
-    S --> Q["Scheduler · in-process queue per cluster"]
-    Q --> P["Placer · transaction-local"]
+    S --> Q["Scheduler · when? queue order"]
+    Q --> P["Placer · where? resource units"]
     P --> T["Grid topology view · Pack / Spread"]
     S <--> DB[("PostgreSQL · jobs, resources, allocations")]
     S -- "locked resource inventory" --> P
@@ -63,8 +63,8 @@ flowchart TD
 ```
 
 - **Server** checks institute quotas, chooses a cluster, applies per-job node reservations, owns job/allocation persistence, and records lifecycle events. FastAPI routers own the request-session commit/rollback.
-- **Scheduler** maintains a process-local priority queue of lightweight job references per cluster. It decides which queued job to attempt; it is not a distributed scheduler or a database-backed work queue.
-- **Placer** receives transaction-local, row-locked `Node`/`ResourceNode` objects and returns the exact resource units selected by Pack/Spread, potentially across multiple nodes. It does not query or commit the database.
+- **Scheduler — when?** Maintains a process-local priority queue of lightweight job references per cluster and decides which queued job gets the next placement attempt. It is not a distributed scheduler or a database-backed work queue.
+- **Placer — where?** Receives transaction-local, row-locked `Node`/`ResourceNode` objects and returns the exact resource units selected by Pack/Spread, potentially across multiple nodes. It does not query or commit the database.
 - **TopologyView** supplies coordinate-grid distance and neighbors. The separate leaf–spine model does not yet drive live allocations.
 
 Queued jobs and allocation records persist in **PostgreSQL**, while the scheduling queue is in memory and single-worker oriented. See the [implemented architecture and current class diagram](docs/architecture.md), [schema](docs/erd.md), and [design decisions](docs/decisions.md).
