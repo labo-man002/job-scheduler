@@ -22,11 +22,10 @@ class PendingJob:
 class Scheduler:
     """Maintain a job queue and delegate placement of selected jobs.
 
-    The queue holds lightweight ``PendingJob`` references, never ORM ``Job``
-    instances from a previous request's database session. ``Server`` resolves
-    each reference to a current ``Job``, assigns a transaction-local ``Placer``
-    before attempting placement, and handles retry/skip decisions. Stale
-    references (for example cancelled queued jobs) are discarded lazily.
+    The queue stores the real job objects supplied by the caller. A caller
+    normally uses ``dequeue()`` followed by ``attempt_placement(job)``; a job
+    that cannot currently be placed can be enqueued again according to the
+    caller's retry policy.
     """
 
     def __init__(
