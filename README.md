@@ -49,19 +49,25 @@ The distinction in the last row matters: GPU resources can be requested and allo
 
 ```mermaid
 flowchart TD
-    A["Client / REST API"] --> B["Server · admission & lifecycle"]
-    B --> C["Scheduler · when?"]
-    C --> D["Placer · where?"]
-    D --> E["Topology & resource view"]
-    B <--> F[("PostgreSQL · jobs & allocations")]
+    UI["React UI / API clients"] --> R["FastAPI routers"]
+    R --> S["Server · admission, routing, lifecycle"]
+    S --> Q["Scheduler · in-process queue per cluster"]
+    Q --> P["Placer · transaction-local"]
+    P --> T["Grid topology view · Pack / Spread"]
+    S <--> DB[("PostgreSQL · jobs, resources, allocations")]
+    S -- "locked resource inventory" --> P
+
+    subgraph F["Standalone leaf–spine prototype · not integrated"]
+        LS["Switches, NICs and links"] --> CF["Read-only GPU candidates"]
+    end
 ```
 
-- **Server** receives requests, selects a cluster, enforces quotas and reservation rules, and owns job/allocation persistence.
-- **Scheduler** determines which queued job to attempt next. Its ordering policy can change independently of placement.
-- **Placer** filters eligible resource units and applies a placement policy against a topology view.
-- **PostgreSQL** records jobs, resource ownership, allocations, and lifecycle events. Placement uses transaction-local, row-locked resource state to protect allocation consistency.
+- **Server** checks institute quotas, chooses a cluster, applies per-job node reservations, owns job/allocation persistence, and records lifecycle events. FastAPI routers own the request-session commit/rollback.
+- **Scheduler** maintains a process-local priority queue of lightweight job references per cluster. It decides which queued job to attempt; it is not a distributed scheduler or a database-backed work queue.
+- **Placer** receives transaction-local, row-locked `Node`/`ResourceNode` objects and returns the exact resource units selected by Pack/Spread, potentially across multiple nodes. It does not query or commit the database.
+- **TopologyView** supplies coordinate-grid distance and neighbors. The separate leaf–spine model does not yet drive live allocations.
 
-The current queue is **in-process and single-worker oriented**; it is not a distributed control plane. For the detailed model, see [architecture](docs/architecture.md), [schema](docs/erd.md), and the [design decisions](docs/decisions.md).
+Queued jobs and allocation records persist in **PostgreSQL**, while the scheduling queue is in memory and single-worker oriented. See the [implemented architecture and current class diagram](docs/architecture.md), [schema](docs/erd.md), and [design decisions](docs/decisions.md).
 
 ### A second topology model: GPU leaf–spine fabrics
 
