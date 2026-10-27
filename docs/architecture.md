@@ -11,18 +11,26 @@ allocation path yet.
 ```mermaid
 flowchart TD
     UI["React UI / API clients"] --> API["FastAPI REST routers"]
-    API --> S["Server · quota, routing, lifecycle"]
-    S --> Q["Scheduler · one process-local queue per cluster"]
-    Q --> P["Placer · transaction-local"]
-    P --> POLICY["PlaceAlgorithm · Pack / Spread"]
-    POLICY --> G["Grid TopologyView · distances"]
-    S <--> DB[("PostgreSQL · jobs, resources, allocations")]
-    S -- "loads and row-locks resource state" --> P
+    API --> S["Server · admission, lifecycle, persistence"]
+    S -- "enqueue / dequeue PendingJob" --> Q["Scheduler · when?"]
+    S -- "constructs from locked ORM rows" --> P["Placer · where?"]
+    Q -- "attempt_placement(ORM Job)" --> P
+    P -- "build_view(eligible nodes)" --> T["Topology"]
+    T -- "returns" --> V["TopologyView"]
+    P -- "select/rank(Job, candidates, view)" --> ALG["PlaceAlgorithm · Pack / Spread"]
+    ALG -. "reads view.distance" .-> V
+    S -- "queries / flushes" --> DB[("PostgreSQL")]
+    API -- "commits or rolls back" --> DB
 
     subgraph FABRIC["Separate in-memory prototype · not integrated"]
-        L["LeafSpineTopology · switches, NICs, links"] --> F["GpuCandidateFinder · read-only candidates"]
+        L["LeafSpineTopology"] --> F["GpuCandidateFinder · read-only"]
     end
 ```
+
+The arrows above distinguish **method calls and data use**. In particular,
+`Placer` calls `Topology.build_view()` and passes the returned view into
+`PlaceAlgorithm.select()` or `.rank()`; the policy reads the view but does not
+construct it. The routers, not `Server`, commit or roll back the session.
 
 - **FastAPI routers** accept requests, create a `Server` with the request's
   database session, translate domain errors to HTTP responses, and commit or
@@ -51,6 +59,47 @@ The central design distinction remains:
 - **Placer answers *where*.** Given the ORM `Job` selected for an attempt and eligible resources, which precise `ResourceNode` units should be allocated? `PlaceAlgorithm` (`PackAlgorithm` or `SpreadAlgorithm`) ranks candidates using the current topology view.
 
 These decisions are independently swappable. `Server` sits at their boundary: it handles admission and persistence, asks the scheduler for the next job, loads and locks the inventory, applies reservation eligibility, and delegates the physical choice to the placer. Here, *when* means **queue ordering/next attempt**, not a wall-clock start-time guarantee.
+
+## Submission-to-placement call sequence
+
+This traces **one placement attempt** in a `POST /jobs` request. If a drain
+continues to another job, `Server` reuses the same transaction-local `Placer`
+while updating its reservation-eligible node list for that job.
+
+```mermaid
+sequenceDiagram
+    participant API as Jobs router
+    participant S as Server
+    participant Q as Scheduler
+    participant P as Placer
+    participant DB as DB session
+    API->>S: submit_job(client_id, requirements, priority, duration)
+    S->>DB: load client, check quota, choose cluster by total units
+    Note over S,Q: Server looks up process-local scheduler and seeds it from QUEUED jobs on first use
+    S->>DB: flush QUEUED Job, requirements, event
+    S->>Q: enqueue(PendingJob)
+    S->>Q: dequeue() during _drain_queue
+    Q-->>S: PendingJob reference
+    S->>DB: reload ORM Job and lock Node/ResourceNode rows
+    S->>P: construct with locked nodes, policy, Topology(cluster)
+    S->>P: set nodes eligible under current reservations
+    S->>Q: attempt_placement(ORM Job)
+    Q->>P: place(ORM Job)
+    Note over P: build topology view, call policy select/rank, mark units ALLOCATED
+    P-->>Q: resource units or None
+    Q-->>S: resource units or None
+    alt placement succeeded
+        S->>DB: flush Allocation, AllocationNode rows, RUNNING status/event
+    else capacity failure
+        S->>Q: re-enqueue ref and stop strict-order drain
+    end
+    API->>DB: commit transaction
+```
+
+The reservation-only exception is separate: if excluded nodes alone caused
+failure but the full inventory has enough free resources, `Server` holds that
+reference aside and continues to the next queued job before re-enqueueing it.
+Stale queued references are discarded before a `Placer` is constructed.
 
 ## Implemented class diagram: scheduling and placement
 
@@ -86,7 +135,7 @@ classDiagram
     class Scheduler {
         +job_queue: PriorityQueue
         +sort_strategy: SortStrategy
-        +placer: Placer
+        +placer: Optional~Placer~
         +enqueue(job)
         +dequeue()
         +attempt_placement(job)
@@ -154,6 +203,7 @@ classDiagram
     SortStrategy <|-- PrioritySort
     Placer --> PlaceAlgorithm : selects or ranks with
     PlaceAlgorithm ..> TopologyView : reads distances from
+    Placer ..> TopologyView : passes to policy
     PlaceAlgorithm <|-- PackAlgorithm
     PlaceAlgorithm <|-- SpreadAlgorithm
     Placer --> Node : holds eligible locked nodes
