@@ -9,12 +9,10 @@ from .topology import Topology
 
 
 class Placer:
-    """A transaction-local placer for one cluster's locked ORM resource inventory.
-
-    Server supplies the current session's Node/ResourceNode objects. Placer
-    selects and marks exact resource units but never queries or commits the DB;
-    FastAPI routers commit the transaction after Server completes the operation.
-    """
+    """One Placer per Cluster. Operates directly on the real ORM Node/ResourceNode
+    objects passed in — never queries the DB or commits itself. Whoever loads `nodes`
+    and calls place()/release_resource() (Server, out of scope for this ticket) is
+    responsible for the session and for committing afterward."""
 
     def __init__(self, nodes: list[Node], algorithm: PlaceAlgorithm, topology: Topology):
         self.nodes = nodes
