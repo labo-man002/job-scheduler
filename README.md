@@ -53,7 +53,8 @@ flowchart TD
     R --> S["Server · admission, routing, lifecycle"]
     S --> Q["Scheduler · when? queue order"]
     Q --> P["Placer · where? resource units"]
-    P --> T["Grid topology view · Pack / Spread"]
+    P --> POLICY["PlaceAlgorithm · Pack / Spread"]
+    POLICY --> T["Grid TopologyView · distances"]
     S <--> DB[("PostgreSQL · jobs, resources, allocations")]
     S -- "locked resource inventory" --> P
 
@@ -67,7 +68,7 @@ flowchart TD
 - **Placer — where?** Receives transaction-local, row-locked `Node`/`ResourceNode` objects and returns the exact resource units selected by Pack/Spread, potentially across multiple nodes. It does not query or commit the database.
 - **TopologyView** supplies coordinate-grid distance and neighbors. The separate leaf–spine model does not yet drive live allocations.
 
-Queued jobs and allocation records persist in **PostgreSQL**, while the scheduling queue is in memory and single-worker oriented. See the [implemented architecture and current class diagram](docs/architecture.md), [schema](docs/erd.md), and [design decisions](docs/decisions.md).
+Queued jobs and allocation records persist in **PostgreSQL**, while the scheduling queue is in memory and single-worker oriented. See the [implemented architecture and current class diagrams](docs/architecture.md), [historical ERD](docs/erd.md) ([audit #92](https://github.com/labo-man002/job-scheduler/issues/92)), and [design decisions](docs/decisions.md).
 
 ### A second topology model: GPU leaf–spine fabrics
 
@@ -222,7 +223,7 @@ These are directions, not claims about implemented functionality or measured AI-
 | Document | Focus |
 | --- | --- |
 | [Architecture](docs/architecture.md) | Scheduler–placer split, domain concepts, and class diagrams. |
-| [Data model](docs/erd.md) | Persistence and allocation relationships. |
+| [Historical data model](docs/erd.md) | Legacy ERD and schema rationale; [alignment audit #92](https://github.com/labo-man002/job-scheduler/issues/92) is open. |
 | [Design decisions](docs/decisions.md) | Modeling tradeoffs, invariants, and known open questions. |
 | [GPU leaf–spine](docs/gpu-leaf-spine.md) | The standalone fabric model, API, guarantees, and deferred integration. |
 
