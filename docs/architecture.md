@@ -14,7 +14,8 @@ flowchart TD
     API --> S["Server · quota, routing, lifecycle"]
     S --> Q["Scheduler · one process-local queue per cluster"]
     Q --> P["Placer · transaction-local"]
-    P --> G["Grid TopologyView · Pack / Spread"]
+    P --> POLICY["PlaceAlgorithm · Pack / Spread"]
+    POLICY --> G["Grid TopologyView · distances"]
     S <--> DB[("PostgreSQL · jobs, resources, allocations")]
     S -- "loads and row-locks resource state" --> P
 
@@ -54,8 +55,9 @@ These decisions are independently swappable. `Server` sits at their boundary: it
 ## Implemented class diagram: scheduling and placement
 
 The diagram deliberately focuses on executable domain classes and their most
-important ORM dependencies. For the complete persistence relationships, see
-the [database ERD](erd.md).
+important ORM dependencies. For the implemented persistence relationships, consult the SQLAlchemy
+models and Alembic migrations. The [historical ERD](erd.md) needs a separate
+[audit (#92)](https://github.com/labo-man002/job-scheduler/issues/92).
 
 ```mermaid
 classDiagram
@@ -151,9 +153,10 @@ classDiagram
     SortStrategy <|-- FifoSort
     SortStrategy <|-- PrioritySort
     Placer --> PlaceAlgorithm : selects or ranks with
+    PlaceAlgorithm ..> TopologyView : reads distances from
     PlaceAlgorithm <|-- PackAlgorithm
     PlaceAlgorithm <|-- SpreadAlgorithm
-    Placer --> Node : holds locked inventory
+    Placer --> Node : holds eligible locked nodes
     Placer --> Topology : uses
     Topology --> TopologyView : builds
     Topology --> Cluster : configured by
@@ -194,7 +197,8 @@ classDiagram
     class Allocation {
         +allocation_id: int
         +begin_time: datetime
-        +end_time: datetime
+        +end_time: Optional~datetime~
+        +duration: Optional~int~
         +allocation_status: AllocationStatus
     }
     class AllocationNode {
@@ -219,7 +223,23 @@ classDiagram
 The ORM `ResourceRequirement` is the **request**, while `AllocationNode` is the
 **actual fulfillment**. Their separation makes allocation decisions auditable
 even for jobs that span nodes. The diagram omits institute policy and other
-tables for readability; their full cardinalities are in the ERD.
+tables for readability; the ORM models and migrations are authoritative
+until the [ERD audit (#92)](https://github.com/labo-man002/job-scheduler/issues/92) is complete.
+
+### Why `Topology` and `TopologyView` are separate
+
+`Topology` holds the cluster's grid configuration. For each placement attempt,
+`Placer` builds a `TopologyView` over its **current eligible ORM nodes**;
+`TopologyView` indexes their coordinates and supplies distances. Pack/Spread
+can therefore score a candidate against occupied nodes (`ALLOCATED` or
+`MIXED`) that are not themselves candidates because they lack enough free
+resources. This preserves the distinction between **placement eligibility**
+and **topology context** within that view.
+
+Today, reservation-excluded nodes are absent from both the candidate set and
+the topology view. Whether their physical occupancy should still influence
+scoring is an open [design question (#91)](https://github.com/labo-man002/job-scheduler/issues/91);
+the documentation PR does not change that behavior.
 
 ## From submission to an allocation
 
@@ -298,4 +318,4 @@ own detailed class diagram live in [GPU leaf–spine design](gpu-leaf-spine.md).
 - [Scheduler](../backend/app/domain/scheduler.py) and [sort strategies](../backend/app/domain/sort_strategy.py) — queue ordering.
 - [Placer](../backend/app/domain/placer.py), [placement algorithms](../backend/app/domain/place_algorithm.py) and [grid topology](../backend/app/domain/topology.py) — resource-unit selection.
 - [Leaf–spine prototype](gpu-leaf-spine.md) — standalone network feasibility model.
-- [Database ERD](erd.md) and [decisions](decisions.md) — data ownership and tradeoffs.
+- [Historical ERD](erd.md) ([audit #92](https://github.com/labo-man002/job-scheduler/issues/92)) and [decisions](decisions.md) — schema history and modeling tradeoffs; current ORM models/migrations are authoritative.
