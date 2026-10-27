@@ -42,6 +42,15 @@ flowchart TD
   distance snapshot used by Pack/Spread. They do not represent leaf–spine
   networking; `FAT_TREE` remains unsupported in the live cluster path.
 
+## Where vs. when
+
+The central design distinction remains:
+
+- **Scheduler answers *when*.** Given a cluster's queued jobs, which job should get the next placement attempt? `SortStrategy` (`PrioritySort` or `FifoSort`) orders the `PendingJob` references; it does not choose resource units.
+- **Placer answers *where*.** Given the ORM `Job` selected for an attempt and eligible resources, which precise `ResourceNode` units should be allocated? `PlaceAlgorithm` (`PackAlgorithm` or `SpreadAlgorithm`) ranks candidates using the current topology view.
+
+These decisions are independently swappable. `Server` sits at their boundary: it handles admission and persistence, asks the scheduler for the next job, loads and locks the inventory, applies reservation eligibility, and delegates the physical choice to the placer. Here, *when* means **queue ordering/next attempt**, not a wall-clock start-time guarantee.
+
 ## Implemented class diagram: scheduling and placement
 
 The diagram deliberately focuses on executable domain classes and their most
