@@ -50,16 +50,19 @@ The distinction in the last row matters: GPU resources can be requested and allo
 ```mermaid
 flowchart TD
     UI["React UI / API clients"] --> R["FastAPI routers"]
-    R --> S["Server · admission, routing, lifecycle"]
-    S --> Q["Scheduler · when? queue order"]
-    Q --> P["Placer · where? resource units"]
-    P --> POLICY["PlaceAlgorithm · Pack / Spread"]
-    POLICY --> T["Grid TopologyView · distances"]
-    S <--> DB[("PostgreSQL · jobs, resources, allocations")]
-    S -- "locked resource inventory" --> P
+    R --> S["Server · admission, lifecycle, persistence"]
+    S -- "enqueue / dequeue" --> Q["Scheduler · when?"]
+    S -- "builds from locked nodes" --> P["Placer · where?"]
+    Q -- "attempt_placement(Job)" --> P
+    P -- "build_view" --> T["Topology"]
+    T --> V["TopologyView"]
+    P -- "select / rank" --> ALG["PlaceAlgorithm · Pack / Spread"]
+    ALG -. "reads distances" .-> V
+    S -- "queries / flushes" --> DB[("PostgreSQL")]
+    R -- "commit / rollback" --> DB
 
-    subgraph F["Standalone leaf–spine prototype · not integrated"]
-        LS["Switches, NICs and links"] --> CF["Read-only GPU candidates"]
+    subgraph FABRIC["Standalone prototype · not integrated"]
+        LS["LeafSpineTopology"] --> CF["Read-only GPU candidates"]
     end
 ```
 
