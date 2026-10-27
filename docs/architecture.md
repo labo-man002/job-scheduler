@@ -1,188 +1,371 @@
 # Architecture
 
-Design history lives in issues [#25](https://github.com/taroryu004-lab/job-scheduler/issues/25)–[#27](https://github.com/taroryu004-lab/job-scheduler/issues/27). This is the current agreed shape.
+This document describes the **implemented backend**, not the earlier proposed
+design in issues #25–#27. The live system uses request-scoped `Server` instances,
+process-local queues, transaction-local placement, and SQLAlchemy ORM models.
+The independent GPU leaf–spine prototype is deliberately **not** part of the
+allocation path yet.
 
-## Class diagram
+## System boundaries
+
+```mermaid
+flowchart TD
+    UI["React UI / API clients"] --> API["FastAPI REST routers"]
+    API --> S["Server · admission, lifecycle, persistence"]
+    S -- "enqueue / dequeue PendingJob" --> Q["Scheduler · when?"]
+    S -- "constructs from locked ORM rows" --> P["Placer · where?"]
+    Q -- "attempt_placement(ORM Job)" --> P
+    P -- "build_view(eligible nodes)" --> T["Topology"]
+    T -- "returns" --> V["TopologyView"]
+    P -- "select/rank(Job, candidates, view)" --> ALG["PlaceAlgorithm · Pack / Spread"]
+    ALG -. "reads view.distance" .-> V
+    S -- "queries / flushes" --> DB[("PostgreSQL")]
+    API -- "commits or rolls back" --> DB
+
+    subgraph FABRIC["Separate in-memory prototype · not integrated"]
+        L["LeafSpineTopology"] --> F["GpuCandidateFinder · read-only"]
+    end
+```
+
+The arrows above distinguish **method calls and data use**. In particular,
+`Placer` calls `Topology.build_view()` and passes the returned view into
+`PlaceAlgorithm.select()` or `.rank()`; the policy reads the view but does not
+construct it. The routers, not `Server`, commit or roll back the session.
+
+- **FastAPI routers** accept requests, create a `Server` with the request's
+  database session, translate domain errors to HTTP responses, and commit or
+  roll back mutations. The ORM `Client` is a persisted user/owner record, **not**
+  a network client class with `connect()` and `disconnect()` methods.
+- **Server** owns admission, institute-level quotas, cluster routing, reservation
+  filtering, allocation/event persistence, and resource release. It queries
+  SQLAlchemy models directly; there is **no `AllocationRepository`**.
+- **Scheduler** maintains a priority queue of lightweight `PendingJob` references
+  (`job_id`, `priority`). One scheduler per cluster is cached in
+  `Server._schedulers` for the life of the Python process. Its sorting policy
+  selects **which job is attempted next**, not the physical resources.
+- **Placer** is constructed when a queue drain needs a placement attempt, using
+  the current transaction's row-locked `Node` and `ResourceNode` objects. It
+  chooses **which exact resource units** to allocate. It neither queries nor
+  commits the database.
+- **Topology / TopologyView** describe the coordinate-grid neighborhood and
+  distance snapshot used by Pack/Spread. They do not represent leaf–spine
+  networking; `FAT_TREE` remains unsupported in the live cluster path.
+
+## Where vs. when
+
+The central design distinction remains:
+
+- **Scheduler answers *when*.** Given a cluster's queued jobs, which job should get the next placement attempt? `SortStrategy` (`PrioritySort` or `FifoSort`) orders the `PendingJob` references; it does not choose resource units.
+- **Placer answers *where*.** Given the ORM `Job` selected for an attempt and eligible resources, which precise `ResourceNode` units should be allocated? `PlaceAlgorithm` (`PackAlgorithm` or `SpreadAlgorithm`) ranks candidates using the current topology view.
+
+These decisions are independently swappable. `Server` sits at their boundary: it handles admission and persistence, asks the scheduler for the next job, loads and locks the inventory, applies reservation eligibility, and delegates the physical choice to the placer. Here, *when* means **queue ordering/next attempt**, not a wall-clock start-time guarantee.
+
+## Submission-to-placement call sequence
+
+This traces **one placement attempt** in a `POST /jobs` request. If a drain
+continues to another job, `Server` reuses the same transaction-local `Placer`
+while updating its reservation-eligible node list for that job.
+
+```mermaid
+sequenceDiagram
+    participant API as Jobs router
+    participant S as Server
+    participant Q as Scheduler
+    participant P as Placer
+    participant DB as DB session
+    API->>S: submit_job(client_id, requirements, priority, duration)
+    S->>DB: load client, check quota, choose cluster by total units
+    Note over S,Q: Server looks up process-local scheduler and seeds it from QUEUED jobs on first use
+    S->>DB: flush QUEUED Job, requirements, event
+    S->>Q: enqueue(PendingJob)
+    S->>Q: dequeue() during _drain_queue
+    Q-->>S: PendingJob reference
+    S->>DB: reload ORM Job and lock Node/ResourceNode rows
+    S->>P: construct with locked nodes, policy, Topology(cluster)
+    S->>P: set nodes eligible under current reservations
+    S->>Q: attempt_placement(ORM Job)
+    Q->>P: place(ORM Job)
+    Note over P: build topology view, call policy select/rank, mark units ALLOCATED
+    P-->>Q: resource units or None
+    Q-->>S: resource units or None
+    alt placement succeeded
+        S->>DB: flush Allocation, AllocationNode rows, RUNNING status/event
+    else capacity failure
+        S->>Q: re-enqueue ref and stop strict-order drain
+    end
+    API->>DB: commit transaction
+```
+
+The reservation-only exception is separate: if excluded nodes alone caused
+failure but the full inventory has enough free resources, `Server` holds that
+reference aside and continues to the next queued job before re-enqueueing it.
+Stale queued references are discarded before a `Placer` is constructed.
+
+## Implemented class diagram: scheduling and placement
+
+The diagram deliberately focuses on executable domain classes and their most
+important ORM dependencies. For the implemented persistence relationships, consult the SQLAlchemy
+models and Alembic migrations. The [historical ERD](erd.md) needs a separate
+[audit (#92)](https://github.com/labo-man002/job-scheduler/issues/92).
 
 ```mermaid
 classDiagram
     direction TB
 
-    class Client {
-        +id: int
-        +institute: str
-        +connect() None
-        +disconnect() None
-        +submit_job(job) Job
-        +cancel_job(job_id) None
-        +get_allocation_details(job_id) Allocation
-    }
-
     class Server {
-        +scheduler: Scheduler
-        +allocation_repository: AllocationRepository
-        +submit_job(job) Job
-        +cancel_job(job_id) None
-        +get_allocation_details(job_id) Allocation
-    }
-
-    class Scheduler {
-        +job_queue: Queue~Job~
-        +placer: Placer
+        +db: Session
         +sort_strategy: SortStrategy
-        +enqueue(job) None
-        +dequeue() Job
-        +remove(job_id) bool
-        +attempt_placement(job) Node
-        +release_node(node) None
+        +place_algorithm: PlaceAlgorithm
+        -_schedulers: dict
+        +submit_job(client_id, requirements, priority, duration)
+        +cancel_job(job_id)
+        +complete_job(job_id)
+        +get_allocation_details(job_id)
+        -_check_quota(institute_id, requirements)
+        -_best_fit_cluster(job_size)
+        -_get_scheduler(cluster_id)
+        -_build_placer(cluster_id)
+        -_drain_queue(cluster_id, scheduler)
     }
 
+    class PendingJob {
+        +job_id: int
+        +priority: Priority
+    }
+    class Scheduler {
+        +job_queue: PriorityQueue
+        +sort_strategy: SortStrategy
+        +placer: Optional~Placer~
+        +enqueue(job)
+        +dequeue()
+        +attempt_placement(job)
+        +set_sort_strategy(strategy)
+    }
     class SortStrategy {
-        <<interface>>
-        +sort(queue) Queue~Job~
+        <<abstract>>
+        +key(job)
+        +sort(queue)
     }
-    class PrioritySort {
-        +sort(queue) Queue~Job~
-    }
-    class FifoSort {
-        +sort(queue) Queue~Job~
-    }
+    class FifoSort
+    class PrioritySort
 
     class Placer {
         +nodes: list~Node~
         +algorithm: PlaceAlgorithm
         +topology: Topology
-        +place(job) Node
-        +release_resource(node) None
-        #filter_nodes(nodes, job) list~Node~
-        #reserve_resource(node) None
+        +place(job)
+        +has_enough_capacity(job, nodes)
+        +release_resource(resource_nodes)
+        -_reserve_from(node, needed)
     }
-
     class PlaceAlgorithm {
-        <<interface>>
-        +select(candidates, job, view) Node
+        <<abstract>>
+        +select(candidates, job, view)
+        +rank(candidates, job, view)
     }
-    class PackAlgorithm {
-        +select(candidates, job, view) Node
-    }
-    class SpreadAlgorithm {
-        +select(candidates, job, view) Node
-    }
+    class PackAlgorithm
+    class SpreadAlgorithm
 
+    class Topology {
+        +cluster: Cluster
+        +build_view(nodes)
+    }
+    class TopologyView {
+        +cluster: Cluster
+        +nodes: list~Node~
+        +neighbors(node)
+        +distance(a, b)
+    }
     class Cluster {
         +cluster_id: int
-        +cluster_name: str
         +topology_type: TopologyType
         +dimension: list~int~
         +wrap: bool
     }
-
-    class Topology {
-        +cluster: Cluster
-        +build_view(nodes) TopologyView
-    }
-
-    class TopologyView {
-        +neighbors(node) list~Node~
-        +distance(a, b) int
-    }
-
     class Node {
         +node_id: int
         +status: NodeStatus
-        +cluster: Cluster
         +coordinates: list~int~
-        +resources: list~ResourceNode~
-        +free_resources(resource_type) list~ResourceNode~
+        +free_resources(resource_type)
     }
-
     class ResourceNode {
+        +resource_node_id: int
         +resource_type: ResourceType
-        +resource_type_index: int
-        +status: ResourceStatus
+        +resource_status: ResourceStatus
     }
 
-    class AllocationRepository {
-        +save(allocation) Allocation
-        +find_by_job_id(job_id) Allocation
-        +delete(allocation_id) None
-    }
+    Server ..> Scheduler : caches by cluster
+    Server ..> Placer : constructs for transaction
+    Scheduler o-- PendingJob : queues
+    Scheduler --> SortStrategy : orders with
+    Scheduler --> Placer : delegates when draining
+    SortStrategy <|-- FifoSort
+    SortStrategy <|-- PrioritySort
+    Placer --> PlaceAlgorithm : selects or ranks with
+    PlaceAlgorithm ..> TopologyView : reads distances from
+    Placer ..> TopologyView : passes to policy
+    PlaceAlgorithm <|-- PackAlgorithm
+    PlaceAlgorithm <|-- SpreadAlgorithm
+    Placer --> Node : holds eligible locked nodes
+    Placer --> Topology : uses
+    Topology --> TopologyView : builds
+    Topology --> Cluster : configured by
+    TopologyView --> Node : indexes
+    Cluster "1" --> "*" Node : contains
+    Node "1" *-- "*" ResourceNode : contains
+```
 
-    class Allocation {
-        +alloc_id: int
-        +resource_nodes: list~ResourceNode~
-        +job: Job
-        +begin_time: datetime
-        +duration_minutes: int
-        +status: AllocationStatus
-        +is_alive() bool
-    }
+`Scheduler.placer` may initially be `None`: `Server._drain_queue()` assigns a
+fresh `Placer` only when there is an eligible queued job. The scheduler stores
+`PendingJob`, whereas `Placer.place()` receives the **ORM `Job`** freshly loaded
+by `Server`. `Placer.place()` returns `list[ResourceNode] | None`, possibly from
+**multiple nodes**; it does not return a single `Node`.
 
+### Persisted request and fulfillment
+
+```mermaid
+classDiagram
+    direction LR
+    class Client {
+        +client_id: int
+        +institute_id: int
+    }
     class Job {
         +job_id: int
-        +owner: Client
-        +priority: Priority
-        +submitted_at: datetime
-        +duration_minutes: int
         +status: JobStatus
-        +requirements: list~ResourceRequest~
+        +priority: Priority
+        +duration: int
     }
-
-    class ResourceRequest {
+    class ResourceRequirement {
         +resource_type: ResourceType
         +amount: int
     }
-
-    Client "1" --> "1" Server : connects to
-    Server "1" --> "1" Scheduler : forwards to
-    Scheduler "1" o-- "1" Placer : uses
-    Scheduler ..> SortStrategy : uses
-    SortStrategy <|.. PrioritySort
-    SortStrategy <|.. FifoSort
-    Placer ..> PlaceAlgorithm : uses
-    PlaceAlgorithm <|.. PackAlgorithm
-    PlaceAlgorithm <|.. SpreadAlgorithm
-    Placer "1" --> "1" Topology : uses
-    Topology "1" --> "1" Cluster : configured by
-    Topology ..> TopologyView : builds
-    PlaceAlgorithm ..> TopologyView : traverses
-    Placer "1" o-- "*" Node : manages
-    Cluster "1" --> "*" Node : hosts
-    Node "1" *-- "1..*" ResourceNode : has
-    Server "1" --> "1" AllocationRepository : uses
-    AllocationRepository "1" --> "*" Allocation : stores
-    Allocation "1" --> "1..*" ResourceNode : spans
-    Allocation "1" --> "1" Job : for
+    class JobEvent {
+        +event_type: JobStatus
+        +time: datetime
+    }
+    class Allocation {
+        +allocation_id: int
+        +begin_time: datetime
+        +end_time: Optional~datetime~
+        +duration: Optional~int~
+        +allocation_status: AllocationStatus
+    }
+    class AllocationNode {
+        +allocation_node_id: int
+    }
+    class ResourceNode {
+        +resource_node_id: int
+        +resource_status: ResourceStatus
+    }
+    class Node {
+        +node_id: int
+    }
     Client "1" --> "*" Job : submits
-    Job "1" *-- "1..*" ResourceRequest : requires
+    Job "1" *-- "*" ResourceRequirement : requests
+    Job "1" --> "*" JobEvent : records
+    Job --> Allocation : may produce
+    Allocation "1" *-- "*" AllocationNode : records units
+    AllocationNode --> ResourceNode : identifies
+    Node "1" *-- "*" ResourceNode : contains
 ```
 
-## How the pieces fit together
+The ORM `ResourceRequirement` is the **request**, while `AllocationNode` is the
+**actual fulfillment**. Their separation makes allocation decisions auditable
+even for jobs that span nodes. The diagram omits institute policy and other
+tables for readability; the ORM models and migrations are authoritative
+until the [ERD audit (#92)](https://github.com/labo-man002/job-scheduler/issues/92) is complete.
 
-- **`Client`** builds a `Job` itself and calls `submit_job(job)` / `cancel_job(job_id)` / `get_allocation_details(job_id)` — currently maintained commands.
-- **`Server`** is the boundary: it's the only thing a `Client` talks to. It assigns `job_id`/`owner` on receipt (so a client can't forge either), forwards jobs to `Scheduler`, and is the only class that reads/writes `AllocationRepository`.
-- **`Scheduler`** only decides *when* a job gets handled: it orders the queue (`SortStrategy` — `PrioritySort` or `FifoSort`, swappable), and calls `Placer` to attempt placement. It doesn't build or store allocations.
-- **`Placer`** only decides *where*: it filters candidate `Node`s and delegates the actual pick to a `PlaceAlgorithm` (`PackAlgorithm` or `SpreadAlgorithm`, swappable). It returns which node's `ResourceNode` units get consumed.
-- **`Allocation`** is where the request side (`Job`) and the resource side (`ResourceNode`) meet — it holds the specific `ResourceNode` units consumed, not a single `Node`, since one allocation can span several resource units (or several nodes). It's built by `Server` after a successful placement and persisted through `AllocationRepository`, backed by the database described in [docs/erd.md](erd.md).
+### Why `Topology` and `TopologyView` are separate
 
-### Where vs. when
+`Topology` holds the cluster's grid configuration. For each placement attempt,
+`Placer` builds a `TopologyView` over its **current eligible ORM nodes**;
+`TopologyView` indexes their coordinates and supplies distances. Pack/Spread
+can therefore score a candidate against occupied nodes (`ALLOCATED` or
+`MIXED`) that are not themselves candidates because they lack enough free
+resources. This preserves the distinction between **placement eligibility**
+and **topology context** within that view.
 
-The two classes that make an allocation happen are split by exactly one question each:
+Today, reservation-excluded nodes are absent from both the candidate set and
+the topology view. Whether their physical occupancy should still influence
+scoring is an open [design question (#91)](https://github.com/labo-man002/job-scheduler/issues/91);
+the documentation PR does not change that behavior.
 
-- **`Scheduler` answers *when*.** Given the queue, whose turn is it? That's ordering — `SortStrategy` (`PrioritySort` or `FifoSort`) decides, and it's swappable independently of everything else.
-- **`Placer` answers *where*.** Given a job whose turn has come, which node fits it? That's placement — `PlaceAlgorithm` (`PackAlgorithm` or `SpreadAlgorithm`) decides, also swappable independently.
+## From submission to an allocation
 
-Neither one needs to know how the other makes its decision — `Scheduler` just calls `Placer.place(job)` once a job reaches the front of the queue.
+1. `POST /jobs` builds a request-scoped `Server`. `submit_job()` loads the
+   `Client`, checks that institute's **current-month concurrent-resource quota**,
+   and chooses the smallest cluster by **total resource-unit count** that can
+   hold the requested total. This routing is a coarse size check, not yet a
+   topology-aware or per-resource-type cluster selection.
+2. `Server` gets the cluster's cached `Scheduler` (seeding it with persisted
+   `QUEUED` jobs on first use), writes the `Job`, `ResourceRequirement` rows and
+   `QUEUED` `JobEvent`, and enqueues a `PendingJob` reference.
+3. During `_drain_queue()`, the scheduler selects the next reference; `Server`
+   reloads the real `Job`, lazily discarding cancelled/stale queue references.
+   `Server._build_placer()` locks the cluster's `Node` and `ResourceNode` rows
+   with `SELECT ... FOR UPDATE` before asking for placement.
+4. For each job, `Server` excludes nodes currently reserved for **other**
+   institutes. `Placer` first tries a single eligible node and, when necessary,
+   ranks nodes for a multi-node allocation. Pack/Spread use a fresh
+   `TopologyView`; the placer marks the chosen individual resource rows
+   `ALLOCATED` in the transaction.
+5. On success, `Server` creates `Allocation` plus one `AllocationNode` per
+   selected `ResourceNode`, marks the job `RUNNING`, and writes its `JobEvent`.
+   The FastAPI router commits the transaction. On capacity failure, the job
+   remains `QUEUED`, and strict-order draining stops. Reservation-only blocking
+   can be skipped temporarily so other institutes are not stalled.
 
-### Topology
+This is **not distributed scheduling**: the queue lives inside one Python
+process. `Server._schedulers` is not shared across workers or transactionally
+coupled to the database; the persistent job state and the in-memory queue are
+separate mechanisms.
 
-A `Node` belongs to exactly one `Cluster`, and its position is a `coordinates` vector rather than a fixed `(x, y, z)` — the vector's length matches the cluster's dimensionality. `Cluster` carries `topology_type` (e.g. `TORUS`, `MESH`, `TREE`, `FLAT` — see [docs/erd.md](erd.md)), `dimension` (the size of each axis, so `[8, 8, 8]` describes what used to be the only supported shape: a fixed 3D torus), and `wrap` (whether coordinates wrap at each axis's boundary — `wrap=true` is what makes a topology a torus instead of a plain grid). `Topology` is the runtime object built from a `Cluster`'s config; given the current node population, it builds a `TopologyView` — a fresh, disposable snapshot with `neighbors(node)` and `distance(a, b)` that a `PlaceAlgorithm` traverses to make its pick.
+### Completion and cancellation
 
-The reason it's split into `Topology` + `TopologyView` rather than one object: `Pack`/`Spread` need to reason about occupancy — "which free candidate is closest to an already-`OCCUPIED` node" — and occupied nodes never appear in `candidates` (they failed the resource-fit filter). Only `Placer` has the full node list, so `Placer` is the one holding `topology` and calling `topology.build_view(self.nodes)` before every placement attempt; `PlaceAlgorithm.select(candidates, job, view)` then traverses that view without needing any state of its own.
+`Server.complete_job()` and cancellation of a running job both invoke
+`_end_running_job()`: release the exact resources referenced by
+`AllocationNode`, set actual allocation end time/duration and status, append a
+job event, then attempt another queue drain for the freed cluster. A cancelled
+**queued** job is marked `CANCELLED` in the database and its stale heap entry
+is discarded later. A resource on a `DOWN` node returns to `UNAVAILABLE`, not
+`AVAILABLE`, when released.
 
-- **`PackAlgorithm`** walks `view` from the candidates toward the nearest `OCCUPIED` node and picks the closest, consolidates usage, keeps free space contiguous.
-- **`SpreadAlgorithm`** does the same walk and picks the farthest.
+## Persistence and policy boundary
 
-Both algorithms rely on `neighbors`/`distance` being defined generically over `coordinates`, `dimension`, and `wrap` rather than hardcoded 3D math — that's what makes them work unchanged whether the cluster is a torus, a mesh, or something else. Grid dimensions used to be fixed config with a single implied cluster; now they're data on `Cluster`, and more than one cluster (each with its own topology) is representable.
+| Concept | Implemented responsibility |
+| --- | --- |
+| `Client` / `Institute` | Persisted ownership; multiple clients may share institute policy. |
+| `Quota` | Per-institute, per-resource-type **live concurrency cap**, selected by calendar month; checked at submission. It is not GPU-hours accounting or hierarchical fair share. |
+| `Reservation` / `NodeReservation` | Time-bounded institute rights to nodes, applied as per-job candidate exclusions before placement; no preemption. |
+| `Job` / `ResourceRequirement` | Requested work, lifecycle status and requested amounts; jobs do not persist a cluster assignment. |
+| `Node` / `ResourceNode` | Authoritative compute inventory and individual CPU/GPU availability. |
+| `Allocation` / `AllocationNode` | Persisted fulfillment: links a job to every actual resource unit, including multi-node allocations. |
+| `JobEvent` | Persisted status-transition history; independent of ephemeral application logs. |
 
-**Resolved (issue #27, 2026-08-01 "final agreed on version"):** the `Cluster` entity proposed on 2026-07-29 is now designed — see [docs/erd.md](erd.md) and [docs/decisions.md](decisions.md) for what it looks like and what's still open (e.g. whether one `Placer` handles multiple clusters or there's one `Placer` per cluster).
+There is currently no usage-metering writer for `ResourceUsage`, no
+gang-scheduling or preemption layer, and no policy engine for borrowing or
+reclaiming quota. Those are potential future extensions, not live components.
+
+## Independent GPU leaf–spine model
+
+`backend/app/domain/leaf_spine/` implements immutable switch/port/NIC/server
+snapshots, canonical physical links, operational-state changes, constrained
+path discovery, and `GpuCandidateFinder`. A `GpuServer` has one NIC and maps to
+an existing ORM `Node.node_id`; the finder receives ORM nodes supplied by its
+caller and only **reads** `ResourceType.GPU` availability and network paths.
+
+Crucially, neither `Server._build_placer()` nor `Placer.place()` instantiates
+`LeafSpineTopology` or calls `GpuCandidateFinder`. There is no persistence for
+fabric devices or links, bandwidth reservation, contention model, NVLink/
+NVSwitch entity, or NVSwitch-aware GPU placement. The separate model and its
+own detailed class diagram live in [GPU leaf–spine design](gpu-leaf-spine.md).
+
+## Code map
+
+- [REST routers](../backend/app/routers/jobs.py) — HTTP/session commit boundary.
+- [Server](../backend/app/domain/server.py) — policy, cluster routing, persistence and draining.
+- [Scheduler](../backend/app/domain/scheduler.py) and [sort strategies](../backend/app/domain/sort_strategy.py) — queue ordering.
+- [Placer](../backend/app/domain/placer.py), [placement algorithms](../backend/app/domain/place_algorithm.py) and [grid topology](../backend/app/domain/topology.py) — resource-unit selection.
+- [Leaf–spine prototype](gpu-leaf-spine.md) — standalone network feasibility model.
+- [Historical ERD](erd.md) ([audit #92](https://github.com/labo-man002/job-scheduler/issues/92)) and [decisions](decisions.md) — schema history and modeling tradeoffs; current ORM models/migrations are authoritative.

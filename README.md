@@ -49,19 +49,29 @@ The distinction in the last row matters: GPU resources can be requested and allo
 
 ```mermaid
 flowchart TD
-    A["Client / REST API"] --> B["Server · admission & lifecycle"]
-    B --> C["Scheduler · when?"]
-    C --> D["Placer · where?"]
-    D --> E["Topology & resource view"]
-    B <--> F[("PostgreSQL · jobs & allocations")]
+    UI["React UI / API clients"] --> R["FastAPI routers"]
+    R --> S["Server · admission, lifecycle, persistence"]
+    S -- "enqueue / dequeue" --> Q["Scheduler · when?"]
+    S -- "builds from locked nodes" --> P["Placer · where?"]
+    Q -- "attempt_placement(Job)" --> P
+    P -- "build_view" --> T["Topology"]
+    T --> V["TopologyView"]
+    P -- "select / rank" --> ALG["PlaceAlgorithm · Pack / Spread"]
+    ALG -. "reads distances" .-> V
+    S -- "queries / flushes" --> DB[("PostgreSQL")]
+    R -- "commit / rollback" --> DB
+
+    subgraph FABRIC["Standalone prototype · not integrated"]
+        LS["LeafSpineTopology"] --> CF["Read-only GPU candidates"]
+    end
 ```
 
-- **Server** receives requests, selects a cluster, enforces quotas and reservation rules, and owns job/allocation persistence.
-- **Scheduler** determines which queued job to attempt next. Its ordering policy can change independently of placement.
-- **Placer** filters eligible resource units and applies a placement policy against a topology view.
-- **PostgreSQL** records jobs, resource ownership, allocations, and lifecycle events. Placement uses transaction-local, row-locked resource state to protect allocation consistency.
+- **Server** checks institute quotas, chooses a cluster, applies per-job node reservations, owns job/allocation persistence, and records lifecycle events. FastAPI routers own the request-session commit/rollback.
+- **Scheduler — when?** Maintains a process-local priority queue of lightweight job references per cluster and decides which queued job gets the next placement attempt. It is not a distributed scheduler or a database-backed work queue.
+- **Placer — where?** Receives transaction-local, row-locked `Node`/`ResourceNode` objects and returns the exact resource units selected by Pack/Spread, potentially across multiple nodes. It does not query or commit the database.
+- **TopologyView** supplies coordinate-grid distance and neighbors. The separate leaf–spine model does not yet drive live allocations.
 
-The current queue is **in-process and single-worker oriented**; it is not a distributed control plane. For the detailed model, see [architecture](docs/architecture.md), [schema](docs/erd.md), and the [design decisions](docs/decisions.md).
+Queued jobs and allocation records persist in **PostgreSQL**, while the scheduling queue is in memory and single-worker oriented. See the [implemented architecture and current class diagrams](docs/architecture.md), [historical ERD](docs/erd.md) ([audit #92](https://github.com/labo-man002/job-scheduler/issues/92)), and [design decisions](docs/decisions.md).
 
 ### A second topology model: GPU leaf–spine fabrics
 
@@ -216,7 +226,7 @@ These are directions, not claims about implemented functionality or measured AI-
 | Document | Focus |
 | --- | --- |
 | [Architecture](docs/architecture.md) | Scheduler–placer split, domain concepts, and class diagrams. |
-| [Data model](docs/erd.md) | Persistence and allocation relationships. |
+| [Historical data model](docs/erd.md) | Legacy ERD and schema rationale; [alignment audit #92](https://github.com/labo-man002/job-scheduler/issues/92) is open. |
 | [Design decisions](docs/decisions.md) | Modeling tradeoffs, invariants, and known open questions. |
 | [GPU leaf–spine](docs/gpu-leaf-spine.md) | The standalone fabric model, API, guarantees, and deferred integration. |
 
