@@ -2,6 +2,8 @@
 
 This is the "document assumptions and modeling decisions" item from issue [#27](https://github.com/taroryu004-lab/job-scheduler/issues/27)'s checklist. It covers both the class diagram ([docs/architecture.md](architecture.md)) and the database schema ([docs/erd.md](erd.md)).
 
+The [canonical glossary](glossary.md) defines the terms used here and distinguishes current implementation from open decisions; accepted model #94 treats each physical compute server as a `Node` containing resource units.
+
 ## Modeling decisions
 
 - **Topology is generalized beyond a fixed 3D torus.** `Node.coordinates` is a variable-length array and `Cluster` stores `topology_type`, `dimension`, and `wrap`. The live cluster-creation path supports `RING`, `MESH_2D`, `TORUS_2D`, and `TORUS_3D`; `FAT_TREE` exists as an enum value but is rejected as unsupported. This replaces the earlier single implied cluster/torus design.
