@@ -6,6 +6,8 @@ process-local queues, transaction-local placement, and SQLAlchemy ORM models.
 The independent GPU leaf–spine prototype is deliberately **not** part of the
 allocation path yet.
 
+For exact definitions of `Server`, physical compute `Node`, resource units, and topology terms, see the [canonical glossary](glossary.md). Open leaf-spine design choices are labeled separately there.
+
 ## System boundaries
 
 ```mermaid
