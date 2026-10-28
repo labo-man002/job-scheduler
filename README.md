@@ -226,6 +226,7 @@ These are directions, not claims about implemented functionality or measured AI-
 | Document | Focus |
 | --- | --- |
 | [Architecture](docs/architecture.md) | Scheduler–placer split, domain concepts, and class diagrams. |
+| [Canonical glossary](docs/glossary.md) | Exact definitions, ownership, examples, and implemented-versus-proposed vocabulary. |
 | [Historical data model](docs/erd.md) | Legacy ERD and schema rationale; [alignment audit #92](https://github.com/labo-man002/job-scheduler/issues/92) is open. |
 | [Design decisions](docs/decisions.md) | Modeling tradeoffs, invariants, and known open questions. |
 | [GPU leaf–spine](docs/gpu-leaf-spine.md) | The standalone fabric model, API, guarantees, and deferred integration. |
