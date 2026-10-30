@@ -5,6 +5,8 @@ This module is intentionally a **separate domain-only prototype**. It does not e
 or reserve GPUs/network bandwidth. Existing `Node` and `ResourceNode` remain the
 source of truth for GPU allocation state.
 
+Use the [canonical glossary](glossary.md) for the distinction between the physical compute `Node`, the application `Server`, and this prototype's `GpuServer` network wrapper. The wrapper's long-term role is still an open #87/#93 design choice.
+
 ## Model and ownership
 
 ```mermaid
