@@ -351,11 +351,14 @@ reclaiming quota. Those are potential future extensions, not live components.
 
 ## Independent GPU leaf–spine model
 
-`backend/app/domain/leaf_spine/` implements immutable switch/port/NIC/server
-snapshots, canonical physical links, operational-state changes, constrained
-path discovery, and `GpuCandidateFinder`. A `GpuServer` has one NIC and maps to
-an existing ORM `Node.node_id`; the finder receives ORM nodes supplied by its
-caller and only **reads** `ResourceType.GPU` availability and network paths.
+`backend/app/domain/leaf_spine/` implements immutable switch/port snapshots,
+canonical physical links, operational-state changes, constrained path
+discovery, and `GpuCandidateFinder`. The existing ORM `Node` is the direct
+compute/network endpoint; its optional `nic_capacity_gbps` and `nic_state`
+fields describe `nic0`, while its `ResourceNode` relationships remain the
+sole GPU inventory. The finder receives the same session-loaded ORM Nodes
+registered with the fabric and only **reads** `ResourceType.GPU` availability
+and network paths.
 
 Crucially, neither `Server._build_placer()` nor `Placer.place()` instantiates
 `LeafSpineTopology` or calls `GpuCandidateFinder`. There is no persistence for

@@ -1,6 +1,8 @@
 """In-memory two-tier leaf/spine aggregate; canonical links and derived graph indexes.
 
-No database or scheduler ownership: the topology models physical connections only.
+The topology owns switches and physical links, and references existing ORM Node
+objects as compute/network endpoints. Node inventory and persistence remain
+owned by the caller and SQLAlchemy session.
 """
 
 from dataclasses import replace
@@ -8,7 +10,10 @@ from heapq import heappop, heappush
 from itertools import count
 from math import isfinite
 
-from .devices import GpuServer, Switch
+from app.enums import NodeStatus
+from app.models.node import Node
+
+from .devices import Switch
 from .link import Link, NetworkPath
 from .types import (
     DeviceInUseError,
@@ -29,16 +34,17 @@ from .types import (
 
 
 class LeafSpineTopology:
-    """The only connection mutation gateway; external snapshots are immutable.
+    """The only connection mutation gateway; Node identity is shared with ORM.
 
     Link records are canonical. _incident_links and _endpoint_link are derived
     lookup indexes, maintained atomically with registration and removal.
+    The caller owns Node lifecycle and state changes; this class never mutates
+    Node or ResourceNode objects.
     """
 
     def __init__(self):
         self._switches: dict[str, Switch] = {}
-        self._servers: dict[str, GpuServer] = {}
-        self._node_server: dict[int, str] = {}
+        self._nodes: dict[str, Node] = {}
         self._links: dict[str, Link] = {}
         self._incident_links: dict[DeviceRef, set[str]] = {}
         self._endpoint_link: dict[EndpointRef, str] = {}
@@ -52,20 +58,23 @@ class LeafSpineTopology:
         self._switches[switch.id] = switch
         self._incident_links[DeviceRef(DeviceKind.SWITCH, switch.id)] = set()
 
-    def add_server(self, server: GpuServer) -> None:
-        if not isinstance(server, GpuServer):
-            raise TypeError("expected GpuServer")
-        if server.id in self._servers or server.node_id in self._node_server:
-            raise DuplicateIdError(f"server ID {server.id} or mapped node {server.node_id} already exists")
-        self._servers[server.id] = server
-        self._node_server[server.node_id] = server.id
-        self._incident_links[DeviceRef(DeviceKind.GPU_SERVER, server.id)] = set()
+    def add_node(self, node: Node) -> None:
+        """Register the existing ORM Node as its own network endpoint."""
+        if not isinstance(node, Node):
+            raise TypeError("expected Node")
+        if type(node.node_id) is not int or node.node_id < 0:
+            raise ValueError("Node must have a persisted nonnegative node_id")
+        node_key = str(node.node_id)
+        if node_key in self._nodes:
+            raise DuplicateIdError(f"Node {node.node_id} is already registered")
+        self._nodes[node_key] = node
+        self._incident_links[DeviceRef(DeviceKind.NODE, node_key)] = set()
 
     def switches(self) -> tuple[Switch, ...]:
         return tuple(self._switches[key] for key in sorted(self._switches))
 
-    def servers(self) -> tuple[GpuServer, ...]:
-        return tuple(self._servers[key] for key in sorted(self._servers))
+    def nodes(self) -> tuple[Node, ...]:
+        return tuple(self._nodes[key] for key in sorted(self._nodes, key=int))
 
     def links(self) -> tuple[Link, ...]:
         return tuple(self._links[key] for key in sorted(self._links))
@@ -76,11 +85,13 @@ class LeafSpineTopology:
         except KeyError as exc:
             raise UnknownDeviceError(f"unknown switch {switch_id}") from exc
 
-    def get_server(self, server_id: str) -> GpuServer:
+    def get_node(self, node_id: int) -> Node:
+        if type(node_id) is not int or node_id < 0:
+            raise UnknownDeviceError(f"invalid Node ID {node_id}")
         try:
-            return self._servers[server_id]
+            return self._nodes[str(node_id)]
         except KeyError as exc:
-            raise UnknownDeviceError(f"unknown GPU server {server_id}") from exc
+            raise UnknownDeviceError(f"unknown Node {node_id}") from exc
 
     def get_link(self, link_id: str) -> Link:
         try:
@@ -96,13 +107,12 @@ class LeafSpineTopology:
         del self._switches[switch_id]
         del self._incident_links[ref]
 
-    def remove_server(self, server_id: str) -> None:
-        ref = DeviceRef(DeviceKind.GPU_SERVER, server_id)
-        server = self.get_server(server_id)
+    def remove_node(self, node_id: int) -> None:
+        ref = DeviceRef(DeviceKind.NODE, str(node_id))
+        self.get_node(node_id)
         if self._incident_links[ref]:
-            raise DeviceInUseError(f"server {server_id} still has physical links")
-        del self._servers[server_id]
-        del self._node_server[server.node_id]
+            raise DeviceInUseError(f"Node {node_id} still has physical links")
+        del self._nodes[str(node_id)]
         del self._incident_links[ref]
 
     def _resolve_endpoint(self, ref: EndpointRef) -> tuple[float, OperationalState]:
@@ -122,11 +132,11 @@ class LeafSpineTopology:
             except ValueError as exc:
                 raise UnknownEndpointError(f"unknown port {ref.endpoint_id} on {switch.id}") from exc
             return port.capacity_gbps, port.state
-        if ref.device_kind == DeviceKind.GPU_SERVER:
-            server = self._servers.get(ref.device_id)
-            if server is None or ref.endpoint_id != "nic0":
-                raise UnknownEndpointError(f"unknown server NIC {ref.device_id}.{ref.endpoint_id}")
-            return server.nic.capacity_gbps, server.nic.state
+        if ref.device_kind == DeviceKind.NODE:
+            node = self._nodes.get(ref.device_id)
+            if node is None or ref.endpoint_id != "nic0" or node.nic_capacity_gbps is None:
+                raise UnknownEndpointError(f"unknown or unconfigured Node NIC {ref.device_id}.{ref.endpoint_id}")
+            return node.nic_capacity_gbps, node.nic_state
         raise UnknownEndpointError(f"unsupported device kind {ref.device_kind}")
 
     def _link_kind(self, a: EndpointRef, b: EndpointRef) -> LinkKind:
@@ -134,10 +144,10 @@ class LeafSpineTopology:
             roles = {self._switches[a.device_id].role, self._switches[b.device_id].role}
             if roles == {SwitchRole.LEAF, SwitchRole.SPINE}:
                 return LinkKind.LEAF_SPINE
-        elif {a.device_kind, b.device_kind} == {DeviceKind.SWITCH, DeviceKind.GPU_SERVER}:
+        elif {a.device_kind, b.device_kind} == {DeviceKind.SWITCH, DeviceKind.NODE}:
             switch_ref = a if a.device_kind == DeviceKind.SWITCH else b
             if self._switches[switch_ref.device_id].role == SwitchRole.LEAF:
-                return LinkKind.SERVER_LEAF
+                return LinkKind.NODE_LEAF
         raise InvalidConnectionError(f"invalid two-tier connection: {a} <-> {b}")
 
     def validate_connection(
@@ -229,25 +239,22 @@ class LeafSpineTopology:
         self._require_state(state)
         self._switches[switch_id] = self.get_switch(switch_id).with_port_state(port_number, state)
 
-    def set_server_state(self, server_id: str, state: OperationalState) -> None:
-        self._require_state(state)
-        self._servers[server_id] = replace(self.get_server(server_id), state=state)
-
-    def set_nic_state(self, server_id: str, state: OperationalState) -> None:
-        self._require_state(state)
-        self._servers[server_id] = replace(self.get_server(server_id), nic_state=state)
-
     def _operational(self, link: Link) -> bool:
         if link.state != OperationalState.UP:
             return False
         for endpoint in (link.a, link.b):
-            _, state = self._resolve_endpoint(endpoint)
-            if state != OperationalState.UP:
+            try:
+                endpoint_capacity, state = self._resolve_endpoint(endpoint)
+            except UnknownEndpointError:
+                # A registered Node's NIC may have been reconfigured after
+                # the physical link was added; that invalidates this path.
+                return False
+            if state != OperationalState.UP or link.capacity_gbps > endpoint_capacity:
                 return False
             if endpoint.device_kind == DeviceKind.SWITCH:
                 if self._switches[endpoint.device_id].state != OperationalState.UP:
                     return False
-            elif self._servers[endpoint.device_id].state != OperationalState.UP:
+            elif self._nodes[endpoint.device_id].status == NodeStatus.DOWN:
                 return False
         return True
 
@@ -263,26 +270,26 @@ class LeafSpineTopology:
             neighbors.append((other.device_id, link))
         return tuple(sorted(neighbors, key=lambda neighbor: (neighbor[0], neighbor[1].id)))
 
-    def connected_servers(self, leaf_id: str, *, operational_only: bool = False) -> tuple[str, ...]:
+    def connected_nodes(self, leaf_id: str, *, operational_only: bool = False) -> tuple[int, ...]:
         switch = self.get_switch(leaf_id)
         if switch.role != SwitchRole.LEAF:
-            raise InvalidConnectionError("connected_servers requires a LEAF switch")
+            raise InvalidConnectionError("connected_nodes requires a LEAF switch")
         ref = DeviceRef(DeviceKind.SWITCH, leaf_id)
-        servers = set()
+        node_ids = set()
         for link_id in self._incident_links[ref]:
             link = self._links[link_id]
-            if link.kind != LinkKind.SERVER_LEAF or (operational_only and not self._operational(link)):
+            if link.kind != LinkKind.NODE_LEAF or (operational_only and not self._operational(link)):
                 continue
             other = link.b.device if link.a.device == ref else link.a.device
-            servers.add(other.device_id)
-        return tuple(sorted(servers))
+            node_ids.add(int(other.device_id))
+        return tuple(sorted(node_ids))
 
     def find_path(
-        self, root_switch_id: str, target_server_id: str, *,
+        self, root_switch_id: str, target_node_id: int, *,
         min_link_capacity_gbps: float | None = None, max_total_latency_us: float | None = None,
     ) -> NetworkPath | None:
         self.get_switch(root_switch_id)
-        self.get_server(target_server_id)
+        self.get_node(target_node_id)
         if min_link_capacity_gbps is not None and (
             not isinstance(min_link_capacity_gbps, (int, float)) or isinstance(min_link_capacity_gbps, bool)
             or not isfinite(min_link_capacity_gbps) or min_link_capacity_gbps <= 0
@@ -294,8 +301,8 @@ class LeafSpineTopology:
         ):
             raise ValueError("max_total_latency_us must be nonnegative and finite")
         root = DeviceRef(DeviceKind.SWITCH, root_switch_id)
-        target = DeviceRef(DeviceKind.GPU_SERVER, target_server_id)
-        if self.get_switch(root_switch_id).state != OperationalState.UP or self.get_server(target_server_id).state != OperationalState.UP:
+        target = DeviceRef(DeviceKind.NODE, str(target_node_id))
+        if self.get_switch(root_switch_id).state != OperationalState.UP or self.get_node(target_node_id).status == NodeStatus.DOWN:
             return None
         # Tie-break: (summed latency, hop count, lexicographic link-ID sequence).
         # Complete paths are query snapshots; no state is modified.
@@ -313,8 +320,8 @@ class LeafSpineTopology:
                 if (min_link_capacity_gbps is not None and link.capacity_gbps < min_link_capacity_gbps) or not self._operational(link):
                     continue
                 other = link.b.device if link.a.device == current else link.a.device
-                if other.kind == DeviceKind.GPU_SERVER and other != target:
-                    continue  # servers are terminal, never transit devices
+                if other.kind == DeviceKind.NODE and other != target:
+                    continue  # compute nodes are terminal, never transit devices
                 new_lat = latency + link.latency_us
                 if max_total_latency_us is not None and new_lat > max_total_latency_us:
                     continue
@@ -333,10 +340,10 @@ class LeafSpineTopology:
         for switch in self.switches():
             if not self.get_neighbors(switch.id):
                 messages.append(f"switch {switch.id} has no leaf-spine uplinks")
-        for server in self.servers():
-            ref = DeviceRef(DeviceKind.GPU_SERVER, server.id)
+        for node in self.nodes():
+            ref = DeviceRef(DeviceKind.NODE, str(node.node_id))
             if not self._incident_links[ref]:
-                messages.append(f"GPU server {server.id} has no leaf attachment")
+                messages.append(f"Node {node.node_id} has no leaf attachment")
         return tuple(messages)
 
     def _assert_indexes_consistent(self) -> None:
@@ -351,4 +358,4 @@ class LeafSpineTopology:
             incident[link.b.device].add(link.id)
         assert incident == self._incident_links
         assert endpoint_link == self._endpoint_link
-        assert self._node_server == {server.node_id: server.id for server in self._servers.values()}
+        assert set(self._nodes) == {str(node.node_id) for node in self._nodes.values()}

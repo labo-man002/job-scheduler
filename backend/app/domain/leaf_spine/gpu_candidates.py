@@ -1,6 +1,9 @@
 """Read-only GPU candidate discovery against the existing SQLAlchemy Node model."""
 
 from dataclasses import dataclass
+from math import isfinite
+
+from sqlalchemy import inspect
 
 from app.enums.nodeStatus import NodeStatus
 from app.enums.resourceType import ResourceType
@@ -13,7 +16,6 @@ from .types import InconsistentInventoryError
 
 @dataclass(frozen=True, slots=True)
 class GpuCandidate:
-    server_id: str
     node_id: int
     free_gpu_ids: tuple[int, ...]
     path: NetworkPath
@@ -29,15 +31,36 @@ class GpuCandidateFinder:
     def __init__(self, topology: LeafSpineTopology):
         self.topology = topology
 
+    @staticmethod
+    def _is_finite(value: int | float) -> bool:
+        try:
+            return isfinite(value)
+        except OverflowError:
+            return False
+
     def find_candidates(
         self, root_switch_id: str, nodes: list[Node], *,
-        min_free_gpus_per_server: int = 1,
+        min_free_gpus_per_node: int = 1,
         min_link_capacity_gbps: float | None = None,
         max_total_latency_us: float | None = None,
     ) -> tuple[GpuCandidate, ...]:
-        if type(min_free_gpus_per_server) is not int or min_free_gpus_per_server < 1:
-            raise ValueError("min_free_gpus_per_server must be a positive integer")
-        # Validate root and constraints even for an empty server inventory.
+        if type(min_free_gpus_per_node) is not int or min_free_gpus_per_node < 1:
+            raise ValueError("min_free_gpus_per_node must be a positive integer")
+        if min_link_capacity_gbps is not None and (
+            not isinstance(min_link_capacity_gbps, (int, float))
+            or isinstance(min_link_capacity_gbps, bool)
+            or not self._is_finite(min_link_capacity_gbps)
+            or min_link_capacity_gbps <= 0
+        ):
+            raise ValueError("min_link_capacity_gbps must be positive and finite")
+        if max_total_latency_us is not None and (
+            not isinstance(max_total_latency_us, (int, float))
+            or isinstance(max_total_latency_us, bool)
+            or not self._is_finite(max_total_latency_us)
+            or max_total_latency_us < 0
+        ):
+            raise ValueError("max_total_latency_us must be nonnegative and finite")
+        # Validate the root and every constraint even when no Nodes are eligible.
         self.topology.get_switch(root_switch_id)
         node_by_id = {}
         for node in nodes:
@@ -45,20 +68,30 @@ class GpuCandidateFinder:
                 raise InconsistentInventoryError(f"duplicate compute Node ID {node.node_id}")
             node_by_id[node.node_id] = node
         candidates = []
-        for server in self.topology.servers():
-            if server.node_id not in node_by_id:
-                raise InconsistentInventoryError(f"GPU server {server.id} refers to missing Node {server.node_id}")
-            node = node_by_id[server.node_id]
+        for registered_node in self.topology.nodes():
+            node = node_by_id.get(registered_node.node_id)
+            if node is None:
+                raise InconsistentInventoryError(
+                    f"leaf-spine Node {registered_node.node_id} is missing from supplied inventory"
+                )
+            if node is not registered_node:
+                raise InconsistentInventoryError(
+                    f"supplied Node {node.node_id} is not the registered topology instance"
+                )
             if node.status == NodeStatus.DOWN:
                 continue
+            if "resources" in inspect(node).unloaded:
+                raise InconsistentInventoryError(
+                    f"Node {node.node_id} resources must be loaded before GPU candidate discovery"
+                )
             gpu_ids = tuple(sorted(resource.resource_node_id for resource in node.free_resources(ResourceType.GPU)))
-            if len(gpu_ids) < min_free_gpus_per_server:
+            if len(gpu_ids) < min_free_gpus_per_node:
                 continue
             path = self.topology.find_path(
-                root_switch_id, server.id,
+                root_switch_id, node.node_id,
                 min_link_capacity_gbps=min_link_capacity_gbps,
                 max_total_latency_us=max_total_latency_us,
             )
             if path is not None:
-                candidates.append(GpuCandidate(server.id, node.node_id, gpu_ids, path))
-        return tuple(sorted(candidates, key=lambda c: (c.path.total_latency_us, c.node_id, c.server_id)))
+                candidates.append(GpuCandidate(node.node_id, gpu_ids, path))
+        return tuple(sorted(candidates, key=lambda c: (c.path.total_latency_us, c.node_id)))

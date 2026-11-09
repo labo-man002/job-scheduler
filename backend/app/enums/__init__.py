@@ -3,6 +3,7 @@ from .basicEnum import BasicEnum
 from .clientStatus import ClientStatus
 from .jobStatus import JobStatus
 from .nodeStatus import NodeStatus
+from .operationalState import OperationalState
 from .priority import Priority
 from .resourceStatus import ResourceStatus
 from .resourceType import ResourceType
@@ -14,6 +15,7 @@ __all__ = [
     "ClientStatus",
     "JobStatus",
     "NodeStatus",
+    "OperationalState",
     "Priority",
     "ResourceStatus",
     "ResourceType",
