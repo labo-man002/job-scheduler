@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 
-from .hardware import SwitchHardwareConfig, _positive_speed
+from .hardware import SwitchHardwareConfig
 from .types import OperationalState, SwitchRole
 
 
@@ -71,35 +71,3 @@ class Switch:
         return replace(self, _ports=tuple(ports))
 
 
-@dataclass(frozen=True, slots=True)
-class NetworkInterface(NetworkEndpoint):
-    id: str
-    capacity_gbps: float
-    state: OperationalState = OperationalState.UP
-
-    @property
-    def endpoint_id(self) -> str:
-        return self.id
-
-
-@dataclass(frozen=True, slots=True)
-class GpuServer:
-    id: str
-    node_id: int
-    nic_capacity_gbps: float
-    state: OperationalState = OperationalState.UP
-    nic_state: OperationalState = OperationalState.UP
-
-    def __post_init__(self):
-        if not isinstance(self.id, str) or not self.id.strip():
-            raise ValueError("server id must be nonempty")
-        if type(self.node_id) is not int or self.node_id < 0:
-            raise ValueError("server node_id must be a nonnegative integer")
-        if not _positive_speed(self.nic_capacity_gbps):
-            raise ValueError("NIC capacity must be finite and positive")
-        _validate_state(self.state)
-        _validate_state(self.nic_state)
-
-    @property
-    def nic(self) -> NetworkInterface:
-        return NetworkInterface("nic0", self.nic_capacity_gbps, self.nic_state)
