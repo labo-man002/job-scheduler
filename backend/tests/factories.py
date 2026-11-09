@@ -3,8 +3,23 @@ from app.enums import NodeStatus, OperationalState, ResourceStatus, ResourceType
 from app.enums.priority import Priority
 
 
-def make_node(node_id, coordinates, resource_count=4, resource_type=ResourceType.CPU, status=NodeStatus.IDLE, nic_capacity_gbps=None, nic_state=OperationalState.UP):
-    node = models.Node(node_id=node_id, cluster_id=1, coordinates=coordinates, status=status, nic_capacity_gbps=nic_capacity_gbps, nic_state=nic_state)
+def make_node(
+    node_id,
+    coordinates,
+    resource_count=4,
+    resource_type=ResourceType.CPU,
+    status=NodeStatus.IDLE,
+    nic_capacity_gbps=None,
+    nic_state=OperationalState.UP,
+):
+    node = models.Node(
+        node_id=node_id,
+        cluster_id=1,
+        coordinates=coordinates,
+        status=status,
+        nic_capacity_gbps=nic_capacity_gbps,
+        nic_state=nic_state,
+    )
     node.resources = [
         models.ResourceNode(
             resource_node_id=node_id * 100 + i,
