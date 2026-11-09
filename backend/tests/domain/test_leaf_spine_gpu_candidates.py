@@ -53,7 +53,7 @@ def test_candidate_discovery_filters_by_real_gpu_units_without_mutation():
     assert finder.find_candidates("leaf", [n1, n2], min_link_capacity_gbps=101) == ()
     assert [c.node_id for c in finder.find_candidates("leaf", [n1, n2], max_total_latency_us=1)] == [10]
     topo.set_link_state("access-1", OperationalState.DOWN)
-    assert finder.find_candidates("leaf", [n1, n2], min_free_gpus_per_server=2) == ()
+    assert finder.find_candidates("leaf", [n1, n2], min_free_gpus_per_node=2) == ()
 
 
 def test_candidate_discovery_ignores_down_nodes():
@@ -75,4 +75,4 @@ def test_candidate_discovery_rejects_mismatched_and_duplicate_inventory():
     with pytest.raises(InconsistentInventoryError):
         finder.find_candidates("leaf", [one, one])
     with pytest.raises(ValueError):
-        finder.find_candidates("leaf", [], min_free_gpus_per_server=0)
+        finder.find_candidates("leaf", [], min_free_gpus_per_node=0)
