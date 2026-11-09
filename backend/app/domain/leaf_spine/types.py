@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from app.enums.operationalState import OperationalState
+from app.enums.operationalState import OperationalState as OperationalState
 
 
 class DeviceKind(str, Enum):
