@@ -109,7 +109,7 @@ def test_bidirectional_allowed_pairs_and_inferred_kinds():
         ends = (port("leaf", 1), port("spine", 1))
         a, b = ends[::-1] if reversed_order else ends
         assert fabric.add_link(a, b, capacity_gbps=400, latency_us=1).kind == LinkKind.LEAF_SPINE
-        ends = (port("leaf", 2), nic(2))
+        ends = (port("leaf", 2), nic(4))
         a, b = ends[::-1] if reversed_order else ends
         assert fabric.add_link(a, b, capacity_gbps=100, latency_us=0).kind == LinkKind.NODE_LEAF
         fabric._assert_indexes_consistent()
