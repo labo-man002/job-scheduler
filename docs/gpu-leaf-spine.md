@@ -162,8 +162,10 @@ candidates = GpuCandidateFinder(fabric).find_candidates(
 - `GpuCandidateFinder` reads `Node.free_resources(ResourceType.GPU)` and
   excludes `NodeStatus.DOWN`. The Node objects supplied to the finder must be
   the same ORM instances registered in the topology and must cover its
-  registered Nodes. It does not mutate, flush, persist, or query anything.
-  Results are sorted by path latency, then Node ID.
+  registered Nodes, with each Node's `resources` relationship already loaded
+  by the caller. Unloaded resources are rejected to prevent implicit ORM
+  lazy-load queries. It does not mutate, flush, persist, or issue database
+  queries. Results are sorted by path latency, then Node ID.
 - `validate_structure()` reports nonfatal missing-uplink/attachment
   diagnostics. Partial graphs remain legal.
 
