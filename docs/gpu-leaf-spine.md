@@ -90,6 +90,8 @@ from app.domain.leaf_spine import (
     DeviceKind, EndpointRef, LeafSpineTopology,
     PortGroupConfig, Switch, SwitchHardwareConfig, SwitchRole,
 )
+from app.enums import NodeStatus
+from app.enums.operationalState import OperationalState
 from app.models.node import Node
 
 config = SwitchHardwareConfig("demo-4x400", (PortGroupConfig(4, 400),))
@@ -100,7 +102,8 @@ fabric.add_switch(Switch("spine-1", SwitchRole.SPINE, config))
 # In the application, this is an existing ORM Node in the current DB session.
 node = Node(
     node_id=42, cluster_id=1, coordinates=[0],
-    nic_capacity_gbps=100,
+    status=NodeStatus.IDLE,
+    nic_capacity_gbps=100, nic_state=OperationalState.UP,
 )
 fabric.add_node(node)
 
