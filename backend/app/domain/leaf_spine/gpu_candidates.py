@@ -1,6 +1,7 @@
 """Read-only GPU candidate discovery against the existing SQLAlchemy Node model."""
 
 from dataclasses import dataclass
+from math import isfinite
 
 from app.enums.nodeStatus import NodeStatus
 from app.enums.resourceType import ResourceType
@@ -28,6 +29,13 @@ class GpuCandidateFinder:
     def __init__(self, topology: LeafSpineTopology):
         self.topology = topology
 
+    @staticmethod
+    def _is_finite(value: int | float) -> bool:
+        try:
+            return isfinite(value)
+        except OverflowError:
+            return False
+
     def find_candidates(
         self, root_switch_id: str, nodes: list[Node], *,
         min_free_gpus_per_node: int = 1,
@@ -36,7 +44,21 @@ class GpuCandidateFinder:
     ) -> tuple[GpuCandidate, ...]:
         if type(min_free_gpus_per_node) is not int or min_free_gpus_per_node < 1:
             raise ValueError("min_free_gpus_per_node must be a positive integer")
-        # Validate root and constraints even for an empty Node inventory.
+        if min_link_capacity_gbps is not None and (
+            not isinstance(min_link_capacity_gbps, (int, float))
+            or isinstance(min_link_capacity_gbps, bool)
+            or not self._is_finite(min_link_capacity_gbps)
+            or min_link_capacity_gbps <= 0
+        ):
+            raise ValueError("min_link_capacity_gbps must be positive and finite")
+        if max_total_latency_us is not None and (
+            not isinstance(max_total_latency_us, (int, float))
+            or isinstance(max_total_latency_us, bool)
+            or not self._is_finite(max_total_latency_us)
+            or max_total_latency_us < 0
+        ):
+            raise ValueError("max_total_latency_us must be nonnegative and finite")
+        # Validate the root and every constraint even when no Nodes are eligible.
         self.topology.get_switch(root_switch_id)
         node_by_id = {}
         for node in nodes:
