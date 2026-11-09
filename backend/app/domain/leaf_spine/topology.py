@@ -243,8 +243,13 @@ class LeafSpineTopology:
         if link.state != OperationalState.UP:
             return False
         for endpoint in (link.a, link.b):
-            _, state = self._resolve_endpoint(endpoint)
-            if state != OperationalState.UP:
+            try:
+                endpoint_capacity, state = self._resolve_endpoint(endpoint)
+            except UnknownEndpointError:
+                # A registered Node's NIC may have been reconfigured after
+                # the physical link was added; that invalidates this path.
+                return False
+            if state != OperationalState.UP or link.capacity_gbps > endpoint_capacity:
                 return False
             if endpoint.device_kind == DeviceKind.SWITCH:
                 if self._switches[endpoint.device_id].state != OperationalState.UP:
