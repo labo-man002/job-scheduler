@@ -74,5 +74,10 @@ def test_candidate_discovery_rejects_mismatched_and_duplicate_inventory():
         finder.find_candidates("leaf", [one])
     with pytest.raises(InconsistentInventoryError):
         finder.find_candidates("leaf", [one, one])
+
+    # Same primary key, but a different ORM instance is not the registered Node.
+    detached_copy = make_node(10, [0], 2, ResourceType.GPU, nic_capacity_gbps=100)
+    with pytest.raises(InconsistentInventoryError):
+        finder.find_candidates("leaf", [detached_copy, two])
     with pytest.raises(ValueError):
         finder.find_candidates("leaf", [], min_free_gpus_per_node=0)
