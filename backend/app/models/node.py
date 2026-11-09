@@ -1,9 +1,12 @@
-from sqlalchemy import Column, Enum, ForeignKey, Integer
+from math import isfinite
+
+from sqlalchemy import Column, Enum, Float, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship, validates
 
 from app.database import Base
 from app.enums.nodeStatus import NodeStatus
+from app.enums.operationalState import OperationalState
 from app.enums.resourceStatus import ResourceStatus
 from app.enums.resourceType import ResourceType
 
@@ -14,6 +17,10 @@ class Node(Base):
     node_id = Column(Integer, primary_key=True)
     cluster_id = Column(Integer, ForeignKey("cluster.cluster_id"), nullable=False)
     coordinates = Column(ARRAY(Integer), nullable=False)
+    # Optional physical NIC metadata used by the in-memory leaf-spine fabric.
+    nic_capacity_gbps = Column(Float, nullable=True)
+    nic_state = Column(Enum(OperationalState, name="operational_state"), nullable=False, default=OperationalState.UP)
+
     status= Column(
         Enum(NodeStatus, name="node_status"), nullable=False, default=NodeStatus.IDLE
     )
@@ -21,6 +28,24 @@ class Node(Base):
     resources = relationship("ResourceNode", back_populates="node")
     cluster = relationship("Cluster", back_populates="nodes")
     node_reservations = relationship("NodeReservation", back_populates="node")
+
+
+    @validates("nic_capacity_gbps")
+    def _check_nic_capacity(self, _key, capacity):
+        if capacity is not None and (
+            isinstance(capacity, bool)
+            or not isinstance(capacity, (int, float))
+            or not isfinite(capacity)
+            or capacity <= 0
+        ):
+            raise ValueError("NIC capacity must be finite and positive")
+        return float(capacity) if capacity is not None else None
+
+    @validates("nic_state")
+    def _check_nic_state(self, _key, state):
+        if not isinstance(state, OperationalState):
+            raise ValueError("nic_state must be an OperationalState")
+        return state
 
     @validates("coordinates")
     def _check_coordinates(self, _key, coordinates):
