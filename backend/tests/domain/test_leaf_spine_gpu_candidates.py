@@ -15,6 +15,7 @@ from app.domain.leaf_spine import (
     SwitchRole,
 )
 from app.enums import NodeStatus, ResourceStatus, ResourceType
+from app.models.node import Node
 from tests.factories import make_node
 
 
@@ -63,6 +64,18 @@ def test_candidate_discovery_ignores_down_nodes():
     ]
     topo = fabric(nodes)
     assert [c.node_id for c in GpuCandidateFinder(topo).find_candidates("leaf", nodes)] == [11]
+
+
+def test_candidate_discovery_requires_gpu_resources_to_be_preloaded():
+    node = Node(
+        node_id=21,
+        cluster_id=1,
+        coordinates=[2],
+        nic_capacity_gbps=100,
+    )
+    topo = fabric([node])
+    with pytest.raises(InconsistentInventoryError, match="resources must be loaded"):
+        GpuCandidateFinder(topo).find_candidates("leaf", [node])
 
 
 def test_candidate_discovery_rejects_mismatched_and_duplicate_inventory():
