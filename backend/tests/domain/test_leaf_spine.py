@@ -257,6 +257,20 @@ def test_operational_state_changes_are_controlled_and_do_not_free_ports():
     fabric._assert_indexes_consistent()
 
 
+def test_nic_reconfiguration_cannot_leave_an_overrated_link_operational():
+    fabric = network()
+    node = fabric.get_node(10)
+
+    node.nic_capacity_gbps = 50
+    assert fabric.find_path("leaf-A", 10) is None
+
+    node.nic_capacity_gbps = 100
+    assert fabric.find_path("leaf-A", 10) is not None
+
+    node.nic_capacity_gbps = None
+    assert fabric.find_path("leaf-A", 10) is None
+
+
 def test_unknown_and_invalid_queries():
     fabric = network()
     with pytest.raises(UnknownDeviceError):
