@@ -81,3 +81,14 @@ def test_candidate_discovery_rejects_mismatched_and_duplicate_inventory():
         finder.find_candidates("leaf", [detached_copy, two])
     with pytest.raises(ValueError):
         finder.find_candidates("leaf", [], min_free_gpus_per_node=0)
+    # Constraint validation must not depend on there being a candidate to score.
+    with pytest.raises(ValueError):
+        finder.find_candidates("leaf", [], min_link_capacity_gbps=0)
+    with pytest.raises(ValueError):
+        finder.find_candidates("leaf", [], min_link_capacity_gbps=True)
+    with pytest.raises(ValueError):
+        finder.find_candidates("leaf", [], max_total_latency_us=-1)
+    with pytest.raises(ValueError):
+        finder.find_candidates("leaf", [], max_total_latency_us=float("nan"))
+    with pytest.raises(ValueError):
+        finder.find_candidates("leaf", [], min_link_capacity_gbps=10**1000)
