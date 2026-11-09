@@ -59,7 +59,7 @@ class LeafSpineTopology:
             raise DuplicateIdError(f"server ID {server.id} or mapped node {server.node_id} already exists")
         self._servers[server.id] = server
         self._node_server[server.node_id] = server.id
-        self._incident_links[DeviceRef(DeviceKind.GPU_SERVER, server.id)] = set()
+        self._incident_links[DeviceRef(DeviceKind.NODE, server.id)] = set()
 
     def switches(self) -> tuple[Switch, ...]:
         return tuple(self._switches[key] for key in sorted(self._switches))
