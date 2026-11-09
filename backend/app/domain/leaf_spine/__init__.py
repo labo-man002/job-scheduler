@@ -1,6 +1,6 @@
 """Standalone leaf/spine fabric model; intentionally not wired into Placer yet."""
 
-from .devices import GpuServer, NetworkEndpoint, NetworkInterface, Port, Switch
+from .devices import NetworkEndpoint, Port, Switch
 from .gpu_candidates import GpuCandidate, GpuCandidateFinder
 from .hardware import DEMO_4X400, PortGroupConfig, SwitchHardwareConfig
 from .link import Link, NetworkPath
@@ -34,7 +34,6 @@ __all__ = [
     "EndpointRef",
     "GpuCandidate",
     "GpuCandidateFinder",
-    "GpuServer",
     "InconsistentInventoryError",
     "InvalidConnectionError",
     "InvalidLinkPropertiesError",
@@ -43,7 +42,6 @@ __all__ = [
     "Link",
     "LinkKind",
     "NetworkEndpoint",
-    "NetworkInterface",
     "NetworkPath",
     "OperationalState",
     "Port",
