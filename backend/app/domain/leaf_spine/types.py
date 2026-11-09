@@ -3,10 +3,12 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from app.enums.operationalState import OperationalState
+
 
 class DeviceKind(str, Enum):
     SWITCH = "SWITCH"
-    GPU_SERVER = "GPU_SERVER"
+    NODE = "NODE"
 
 
 class SwitchRole(str, Enum):
@@ -16,12 +18,7 @@ class SwitchRole(str, Enum):
 
 class LinkKind(str, Enum):
     LEAF_SPINE = "LEAF_SPINE"
-    SERVER_LEAF = "SERVER_LEAF"
-
-
-class OperationalState(str, Enum):
-    UP = "UP"
-    DOWN = "DOWN"
+    NODE_LEAF = "NODE_LEAF"
 
 
 @dataclass(frozen=True, slots=True)
