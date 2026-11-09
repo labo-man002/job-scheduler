@@ -48,3 +48,11 @@ The [canonical glossary](glossary.md) defines the terms used here and distinguis
   - The current design's explicit-coordinates approach already supports **sparse/partial grids** for free (a cluster can be short of its full `dimension` extent — not every logical grid position needs a physical node — since `TopologyView` just looks up whatever's in `self._by_coordinates`, returning nothing for a gap). A "fully auto-generate a dense grid from `dimension`" mode would be strictly less flexible unless it's offered as an *additional* convenience path, not a replacement.
   - `FAT_TREE` is out of scope for any of this either way — it already has no coordinate/dimension meaning (see above), so whatever comes out of this ticket for grid topologies wouldn't apply to it.
   - Minimum fix regardless of that larger decision: reject duplicate `coordinates` within one `Cluster` at `POST /clusters` time — not done yet, held for the same ticket.
+
+
+## Leaf-spine compute identity decision (2026-11-09)
+
+- **Eliminate `GpuServer`; use the existing `Node` as the network endpoint.** A physical compute server already has one canonical identity in the application: `Node`. The leaf-spine topology registers that same ORM Node directly and connects its `nic0` endpoint to a LEAF switch. It must not introduce a wrapper ID or a second representation of the host.
+- **Move NIC attributes to `Node`.** `nic_capacity_gbps` (nullable until a NIC is configured) and `nic_state` (shared `OperationalState`, default `UP`) belong to Node. Existing `Node.status` remains the host-level state; `NodeStatus.DOWN` makes its network path unusable. The topology reads these values but does not own their persistence or mutate the ORM object.
+- **GPU inventory remains on `ResourceNode`.** The former `GpuServer` never owned GPU units. Free GPU IDs/counts continue to be derived from `Node.free_resources(ResourceType.GPU)`; no duplicate GPU attribute or inventory counter is added to Node or the fabric.
+- **Use Node identity throughout the fabric API.** Device references use `DeviceKind.NODE` plus the string form of `node_id`; links from a Node to a leaf use `LinkKind.NODE_LEAF`; path and candidate results identify `node_id` directly. The read-only candidate finder receives the same session-loaded Node instances registered in the topology.
