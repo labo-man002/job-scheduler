@@ -36,7 +36,7 @@ class GpuCandidateFinder:
     ) -> tuple[GpuCandidate, ...]:
         if type(min_free_gpus_per_node) is not int or min_free_gpus_per_node < 1:
             raise ValueError("min_free_gpus_per_node must be a positive integer")
-        # Validate root and constraints even for an empty server inventory.
+        # Validate root and constraints even for an empty Node inventory.
         self.topology.get_switch(root_switch_id)
         node_by_id = {}
         for node in nodes:
