@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from math import isfinite
 
+from sqlalchemy import inspect
+
 from app.enums.nodeStatus import NodeStatus
 from app.enums.resourceType import ResourceType
 from app.models.node import Node
@@ -78,6 +80,10 @@ class GpuCandidateFinder:
                 )
             if node.status == NodeStatus.DOWN:
                 continue
+            if "resources" in inspect(node).unloaded:
+                raise InconsistentInventoryError(
+                    f"Node {node.node_id} resources must be loaded before GPU candidate discovery"
+                )
             gpu_ids = tuple(sorted(resource.resource_node_id for resource in node.free_resources(ResourceType.GPU)))
             if len(gpu_ids) < min_free_gpus_per_node:
                 continue
