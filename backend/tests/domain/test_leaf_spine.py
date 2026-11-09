@@ -95,8 +95,9 @@ def test_rejects_bad_hardware_or_server():
         SwitchHardwareConfig("empty", ())
     with pytest.raises(ValueError):
         make_node(4, [0], resource_count=0, nic_capacity_gbps=0)
+    fabric = LeafSpineTopology()
     with pytest.raises(ValueError):
-        make_node(-1, [0], resource_count=0, nic_capacity_gbps=100)
+        fabric.add_node(make_node(-1, [0], resource_count=0, nic_capacity_gbps=100))
 
 
 def test_bidirectional_allowed_pairs_and_inferred_kinds():
@@ -200,16 +201,16 @@ def test_incremental_partial_topologies_and_device_removal():
     fabric._assert_indexes_consistent()
 
 
-def test_duplicate_switch_server_and_node_ids():
+def test_duplicate_switch_and_node_ids():
     fabric = LeafSpineTopology()
     fabric.add_switch(Switch("leaf", SwitchRole.LEAF, CONFIG))
-    fabric.add_server(GpuServer("gpu", 8, 100))
+    fabric.add_node(make_node(8, [0], resource_count=0, nic_capacity_gbps=100))
     with pytest.raises(DuplicateIdError):
         fabric.add_switch(Switch("leaf", SwitchRole.SPINE, CONFIG))
     with pytest.raises(DuplicateIdError):
         fabric.add_node(make_node(8, [1], resource_count=0, nic_capacity_gbps=100))
     with pytest.raises(DuplicateIdError):
-        fabric.add_node(make_node(9, [2], resource_count=0, nic_capacity_gbps=100))
+        fabric.add_node(make_node(8, [2], resource_count=0, nic_capacity_gbps=100))
     fabric._assert_indexes_consistent()
 
 
@@ -236,15 +237,15 @@ def test_operational_state_changes_are_controlled_and_do_not_free_ports():
     operations = [
         lambda: fabric.set_port_state("leaf-A", 3, OperationalState.DOWN),
         lambda: fabric.set_switch_state("leaf-A", OperationalState.DOWN),
-        lambda: fabric.set_server_state(10, OperationalState.DOWN),
-        lambda: fabric.set_nic_state(10, OperationalState.DOWN),
+        lambda: setattr(fabric.get_node(10), "status", NodeStatus.DOWN),
+        lambda: setattr(fabric.get_node(10), "nic_state", OperationalState.DOWN),
         lambda: fabric.set_link_state("L5", OperationalState.DOWN),
     ]
     reset = [
         lambda: fabric.set_port_state("leaf-A", 3, OperationalState.UP),
         lambda: fabric.set_switch_state("leaf-A", OperationalState.UP),
-        lambda: fabric.set_server_state(10, OperationalState.UP),
-        lambda: fabric.set_nic_state(10, OperationalState.UP),
+        lambda: setattr(fabric.get_node(10), "status", NodeStatus.IDLE),
+        lambda: setattr(fabric.get_node(10), "nic_state", OperationalState.UP),
         lambda: fabric.set_link_state("L5", OperationalState.UP),
     ]
     for turn_down, turn_up in zip(operations, reset):
@@ -263,7 +264,7 @@ def test_unknown_and_invalid_queries():
     with pytest.raises(UnknownDeviceError):
         fabric.find_path("leaf-A", 999)
     with pytest.raises(InvalidConnectionError):
-        fabric.connected_servers("spine-1")
+        fabric.connected_nodes("spine-1")
     for value in (-1, inf, nan, True):
         with pytest.raises(ValueError):
             fabric.find_path("leaf-A", 10, max_total_latency_us=value)
@@ -278,7 +279,7 @@ def test_equal_cost_ties_are_stable_across_insertion_orders():
                    Switch("spine-b", SwitchRole.SPINE, CONFIG)]
         for device in reversed(devices) if backwards else devices:
             fabric.add_switch(device)
-        fabric.add_server(GpuServer("gpu", 2, 100))
+        fabric.add_node(make_node(2, [0], resource_count=0, nic_capacity_gbps=100))
         pairs = [
             ("A", port("leaf", 1), port("spine-a", 1), 2),
             ("B", port("leaf", 2), port("spine-b", 1), 1),
@@ -287,16 +288,16 @@ def test_equal_cost_ties_are_stable_across_insertion_orders():
         for link_id, a, b, latency in reversed(pairs) if backwards else pairs:
             fabric.add_link(a, b, capacity_gbps=100, latency_us=latency, link_id=link_id)
         # No other leaf: the direct one-hop route always wins (and zero latency is allowed).
-        assert fabric.find_path("leaf", "gpu").link_ids == ("C",)
+        assert fabric.find_path("leaf", 2).link_ids == ("C",)
         fabric._assert_indexes_consistent()
 
 
 def test_zero_latency_and_immutable_result():
     fabric = LeafSpineTopology()
     fabric.add_switch(Switch("leaf", SwitchRole.LEAF, CONFIG))
-    fabric.add_server(GpuServer("gpu", 1, 100))
-    fabric.add_link(port("leaf", 1), nic(2), capacity_gbps=100, latency_us=0)
-    result = fabric.find_path("leaf", "gpu", max_total_latency_us=0)
+    fabric.add_node(make_node(1, [0], resource_count=0, nic_capacity_gbps=100))
+    fabric.add_link(port("leaf", 1), nic(1), capacity_gbps=100, latency_us=0)
+    result = fabric.find_path("leaf", 1, max_total_latency_us=0)
     assert result.total_latency_us == 0
     with pytest.raises(FrozenInstanceError):
         result.total_latency_us = 4
