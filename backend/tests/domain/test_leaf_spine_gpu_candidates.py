@@ -14,8 +14,8 @@ from app.domain.leaf_spine import (
     SwitchHardwareConfig,
     SwitchRole,
 )
-from app.enums import NodeStatus, ResourceStatus, ResourceType, TopologyType
 from app.domain.server import Server
+from app.enums import NodeStatus, ResourceStatus, ResourceType, TopologyType
 from app.models.node import Node
 from tests.factories import make_cluster, make_node
 
