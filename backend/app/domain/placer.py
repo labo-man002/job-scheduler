@@ -122,11 +122,10 @@ class Placer:
         for a, b in combinations(group, 2):
             if not view.is_reachable(a, b):
                 return False
-            latency = view.path_latency(a, b)
-            bandwidth = view.path_bandwidth(a, b)
-            if max_latency is not None and (latency is None or latency > max_latency):
-                return False
-            if min_bandwidth is not None and (bandwidth is None or bandwidth < min_bandwidth):
+            metrics = view.path_metrics(
+                a, b, min_bandwidth_gbps=min_bandwidth, max_latency_us=max_latency
+            )
+            if metrics is None:
                 return False
         return True
 
