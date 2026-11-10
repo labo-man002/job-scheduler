@@ -112,8 +112,8 @@ class Placer:
         # locality, then Pack/Spread preference, then stable Node IDs.
         for size in range(min_nodes, upper + 1):
             feasible = []
-            for group in combinations(ranked, size):
-                if not self._has_capacity(job, group) or not self._every_node_contributes(job, group):
+            for group in self._iter_capacity_feasible_groups(ranked, size, job):
+                if not self._every_node_contributes(job, group):
                     continue
                 if not self._satisfies_network_constraints(job, group, view):
                     continue
@@ -124,6 +124,45 @@ class Placer:
             if feasible:
                 return min(feasible, key=lambda item: item[0])[1]
         return None
+
+    def _iter_capacity_feasible_groups(self, ranked: list[Node], size: int, job: Job):
+        """Yield exact-size groups; prune only branches that cannot meet resource totals."""
+        requirements = {req.resource_type: req.amount for req in job.requirements}
+        capacities = [
+            {resource_type: len(node.free_resources(resource_type)) for resource_type in requirements}
+            for node in ranked
+        ]
+
+        def enough_capacity(start: int, slots: int, current: dict) -> bool:
+            for resource_type, amount in requirements.items():
+                best_remaining = sorted(
+                    (capacity[resource_type] for capacity in capacities[start:]),
+                    reverse=True,
+                )[:slots]
+                if current[resource_type] + sum(best_remaining) < amount:
+                    return False
+            return True
+
+        def walk(start: int, slots: int, chosen: list[Node], current: dict):
+            if slots == 0:
+                yield tuple(chosen)
+                return
+            if len(ranked) - start < slots or not enough_capacity(start, slots, current):
+                return
+            last_start = len(ranked) - slots
+            for index in range(start, last_start + 1):
+                updated = {
+                    resource_type: current[resource_type] + capacities[index][resource_type]
+                    for resource_type in requirements
+                }
+                if not enough_capacity(index + 1, slots - 1, updated):
+                    continue
+                chosen.append(ranked[index])
+                yield from walk(index + 1, slots - 1, chosen, updated)
+                chosen.pop()
+
+        initial = {resource_type: 0 for resource_type in requirements}
+        yield from walk(0, size, [], initial)
 
     def _has_capacity(self, job: Job, group: tuple[Node, ...] | list[Node]) -> bool:
         for req in job.requirements:
