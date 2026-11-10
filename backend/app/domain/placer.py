@@ -94,7 +94,8 @@ class Placer:
         return self._select_group(job, candidates, view) is not None
 
     def _select_group(self, job: Job, candidates: list[Node], view) -> tuple[Node, ...] | None:
-        min_nodes = getattr(job, "min_nodes", 1) or 1
+        min_nodes = getattr(job, "min_nodes", None)
+        min_nodes = 1 if min_nodes is None else min_nodes
         max_nodes = getattr(job, "max_nodes", None)
         if type(min_nodes) is not int or min_nodes < 1:
             raise ValueError("min_nodes must be a positive integer")
