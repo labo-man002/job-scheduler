@@ -258,6 +258,8 @@ class NodeOut(OurBaseModel):
     node_id: int
     coordinates: list[int]
     status: NodeStatus
+    nic_capacity_gbps: float | None = None
+    nic_state: Literal["UP", "DOWN"] = "UP"
     resources: list[NodeResourceOut]
 
 
@@ -267,6 +269,7 @@ class ClusterOut(OurBaseModel):
     topology_type: TopologyType
     dimension: list[int]
     wrap: bool
+    fabric: dict | None = None
     total_capacity: int
     free_capacity: int
 
