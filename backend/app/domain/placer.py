@@ -122,11 +122,12 @@ class Placer:
         for a, b in combinations(group, 2):
             if not view.is_reachable(a, b):
                 return False
-            metrics = view.path_metrics(
-                a, b, min_bandwidth_gbps=min_bandwidth, max_latency_us=max_latency
-            )
-            if metrics is None:
-                return False
+            if min_bandwidth is not None or max_latency is not None:
+                metrics = view.path_metrics(
+                    a, b, min_bandwidth_gbps=min_bandwidth, max_latency_us=max_latency
+                )
+                if metrics is None:
+                    return False
         return True
 
     def has_enough_capacity(self, job: Job, nodes: list[Node] | None = None) -> bool:
