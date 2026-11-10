@@ -105,3 +105,34 @@ def test_candidate_discovery_rejects_mismatched_and_duplicate_inventory():
         finder.find_candidates("leaf", [], max_total_latency_us=float("nan"))
     with pytest.raises(ValueError):
         finder.find_candidates("leaf", [], min_link_capacity_gbps=10**1000)
+
+
+
+def test_leaf_spine_implements_generic_placement_topology_contract():
+    from app.domain.topology import PlacementTopology, PlacementTopologyView
+
+    first = make_node(30, [0], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    second = make_node(31, [1], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    topo = fabric([first, second])
+
+    assert isinstance(topo, PlacementTopology)
+    view = topo.build_view([first, second])
+    assert isinstance(view, PlacementTopologyView)
+    assert view.is_reachable(first, second)
+    assert view.distance(first, second) == 3
+    assert view.path_latency(first, second) == 3
+    assert view.path_bandwidth(first, second) == 100
+
+
+def test_leaf_spine_placement_view_rejects_unreachable_nodes():
+    first = make_node(40, [0], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    second = make_node(41, [1], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    topo = LeafSpineTopology()
+    topo.add_node(first)
+    topo.add_node(second)
+    view = topo.build_view([first, second])
+
+    assert not view.is_reachable(first, second)
+    assert view.distance(first, second) == float("inf")
+    assert view.path_latency(first, second) is None
+    assert view.path_bandwidth(first, second) is None
