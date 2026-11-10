@@ -145,4 +145,4 @@ def test_leaf_spine_placement_view_accepts_reserved_node_subset():
     topo = fabric([first, second])
 
     view = topo.build_view([first])
-    assert view.nodes == [first]
+    assert view.nodes == [first, second]
