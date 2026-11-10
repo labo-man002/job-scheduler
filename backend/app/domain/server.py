@@ -43,6 +43,10 @@ from app.domain.exceptions import (
     ReservationNotFoundError,
 )
 from app.domain.place_algorithm import PackAlgorithm
+from app.domain.leaf_spine import (
+    DeviceKind, EndpointRef, LeafSpineTopology, OperationalState, PortGroupConfig,
+    Switch, SwitchHardwareConfig, SwitchRole,
+)
 from app.domain.placer import Placer
 from app.domain.scheduler import PendingJob, Scheduler
 from app.domain.sort_strategy import PrioritySort
@@ -70,6 +74,7 @@ class ResourceCount:
 class NodeSpec:
     coordinates: list[int]
     resources: list[ResourceCount]
+    nic_capacity_gbps: float | None = None
 
 
 _TOPOLOGY_AXES = {
@@ -83,6 +88,10 @@ _TOPOLOGY_AXES = {
 
 
 def _validate_cluster_shape(topology_type, dimension, wrap):
+    if topology_type == TopologyType.LEAF_SPINE:
+        if dimension or wrap:
+            raise ValueError("LEAF_SPINE does not use grid dimensions or wrap")
+        return
     if topology_type == TopologyType.FAT_TREE:
         raise ValueError("FAT_TREE clusters aren't supported yet -- no coordinate/dimension model exists for them")
     if any(axis_size < 1 for axis_size in dimension):
@@ -126,14 +135,23 @@ class Server:
         logger.info("institute %s registered (%r)", institute.institute_id, institute_name)
         return institute
 
-    def create_cluster(self, cluster_name, topology_type, dimension, wrap, node_specs: list[NodeSpec]):
+    def create_cluster(self, cluster_name, topology_type, dimension, wrap, node_specs: list[NodeSpec], fabric_config=None):
         _validate_cluster_shape(topology_type, dimension, wrap)
+        if topology_type == TopologyType.LEAF_SPINE and not fabric_config:
+            raise ValueError("LEAF_SPINE requires a fabric configuration")
+        if topology_type != TopologyType.LEAF_SPINE and fabric_config is not None:
+            raise ValueError("fabric configuration is only valid for LEAF_SPINE clusters")
 
-        cluster = models.Cluster(cluster_name=cluster_name, topology_type=topology_type, dimension=dimension, wrap=wrap)
+        cluster = models.Cluster(
+            cluster_name=cluster_name, topology_type=topology_type, dimension=dimension,
+            wrap=wrap, fabric_config=fabric_config,
+        )
         self.db.add(cluster)
         self.db.flush()
         for spec in node_specs:
-            node = models.Node(cluster=cluster, coordinates=spec.coordinates)  # cluster set first: coordinate validation needs it
+            node = models.Node(
+                cluster=cluster, coordinates=spec.coordinates, nic_capacity_gbps=spec.nic_capacity_gbps
+            )  # cluster set first: coordinate validation needs it
             self.db.add(node)
             self.db.flush()
             for resource_count in spec.resources:
@@ -495,6 +513,33 @@ class Server:
         else:
             topology = Topology(cluster)
         return Placer(nodes, self.place_algorithm, topology)
+
+    @staticmethod
+    def _build_leaf_spine_topology(cluster, nodes):
+        config = cluster.fabric_config
+        if not isinstance(config, dict):
+            raise ValueError(f"LEAF_SPINE cluster {cluster.cluster_id} has no valid fabric configuration")
+        topology = LeafSpineTopology()
+        for item in config.get("switches", []):
+            hardware = SwitchHardwareConfig(
+                item["model"],
+                tuple(PortGroupConfig(group["count"], group["speed_gbps"]) for group in item["port_groups"]),
+            )
+            switch = Switch(item["switch_id"], SwitchRole(item["role"]), hardware, OperationalState(item.get("state", "UP")))
+            topology.add_switch(switch)
+            for port in item.get("ports", []):
+                topology.set_port_state(switch.id, port["number"], OperationalState(port["state"]))
+        for node in nodes:
+            topology.add_node(node)
+        for item in config.get("links", []):
+            link = topology.add_link(
+                EndpointRef(DeviceKind(item["a"]["device_kind"]), item["a"]["device_id"], item["a"]["endpoint_id"]),
+                EndpointRef(DeviceKind(item["b"]["device_kind"]), item["b"]["device_id"], item["b"]["endpoint_id"]),
+                capacity_gbps=item["capacity_gbps"], latency_us=item["latency_us"], link_id=item.get("link_id"),
+            )
+            if item.get("state", "UP") != "UP":
+                topology.set_link_state(link.id, OperationalState(item["state"]))
+        return topology
 
     def _reserved_node_ids(self, cluster_id, exclude_institute_id):
         """Nodes reserved by a DIFFERENT institute, right now. Placer itself
