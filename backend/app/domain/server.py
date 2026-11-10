@@ -360,7 +360,7 @@ class Server:
         self._check_quota(client.institute_id, requirements)
 
         job_size = sum(amount for _, amount in requirements)
-        cluster = self._best_fit_cluster(job_size, min_nodes=min_nodes)  # reject jobs that can never meet their node bound
+        cluster = self._best_fit_cluster(job_size, min_nodes=min_nodes, max_nodes=max_nodes, requirements=requirements)  # reject jobs that can never meet their node bound
         # Fetch (and, on first use, seed) the scheduler before this job exists in the
         # DB as QUEUED -- otherwise seeding would pick it up too, then it gets
         # enqueued a second time below.
@@ -460,7 +460,7 @@ class Server:
             .count()
         )
 
-    def _best_fit_cluster(self, job_size, min_nodes=1):
+    def _best_fit_cluster(self, job_size, min_nodes=1, max_nodes=None, requirements=None):
         clusters = self.db.query(models.Cluster).all()
         if not clusters:
             raise RuntimeError("No cluster configured")
@@ -471,8 +471,27 @@ class Server:
         )
         for cluster, capacity in by_capacity:
             node_count = self.db.query(models.Node).filter_by(cluster_id=cluster.cluster_id).count()
-            if capacity >= job_size and node_count >= min_nodes:
-                return cluster
+            if capacity < job_size or node_count < min_nodes:
+                continue
+            if requirements is not None and max_nodes is not None:
+                node_rows = self.db.query(models.Node).filter_by(cluster_id=cluster.cluster_id).all()
+                for resource_type, amount in requirements:
+                    per_node = sorted(
+                        (
+                            sum(1 for resource in node.resources if resource.resource_type == resource_type)
+                            for node in node_rows
+                        ),
+                        reverse=True,
+                    )
+                    if sum(per_node[:max_nodes]) < amount:
+                        break
+                else:
+                    if sum(amount for _, amount in requirements) >= min_nodes:
+                        return cluster
+                continue
+            if requirements is not None and sum(amount for _, amount in requirements) < min_nodes:
+                continue
+            return cluster
         logger.warning("job submission rejected: %s units requested, no cluster could ever fit it", job_size)
         raise JobTooLargeError(job_size)
 
@@ -482,7 +501,12 @@ class Server:
             for job in self.db.query(models.Job).filter_by(status=JobStatus.QUEUED).all():
                 job_size = sum(r.amount for r in job.requirements)
                 try:
-                    best = self._best_fit_cluster(job_size, min_nodes=job.min_nodes or 1)
+                    best = self._best_fit_cluster(
+                        job_size,
+                        min_nodes=job.min_nodes or 1,
+                        max_nodes=job.max_nodes,
+                        requirements=[(r.resource_type, r.amount) for r in job.requirements],
+                    )
                 except JobTooLargeError:
                     continue  # shouldn't happen for an already-accepted job; don't crash cold-start over it
                 if best.cluster_id == cluster_id:
