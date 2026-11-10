@@ -1,10 +1,13 @@
-# GPU leaf–spine fabric (v1, in-memory)
+# GPU leaf–spine fabric (v1)
 
-This module is an **in-memory domain prototype**. It does not enable
-`TopologyType.FAT_TREE`, change the coordinate-grid `TopologyView`, create
-persistent switch/link tables, or reserve GPUs or network bandwidth. Existing
-`Node` and `ResourceNode` remain the single source of truth for compute hosts
-and allocatable GPU units.
+The Leaf–Spine domain graph is reconstructed at runtime from the per-cluster
+`Cluster.fabric_config` JSONB column. The cluster-creation API validates the
+switch, port and link graph before committing it. `TopologyType.LEAF_SPINE` is
+an explicit topology type; `FAT_TREE` remains a separate unsupported enum
+value. The graph implements the same `PlacementTopology` contract as grid
+topologies, so the generic `Placer` can use it without topology-specific
+placement branches. Existing `Node` and `ResourceNode` remain the single source
+of truth for compute hosts and allocatable GPU units.
 
 The agreed representation is direct: **a physical compute server is its
 existing ORM `Node`**, and that same `Node` is registered as the network
@@ -117,7 +120,12 @@ assert path.link_ids == ("link-1", "link-2")
 assert path.total_latency_us == 3
 ```
 
-GPU discovery (optional read-only query, **not placement**):
+The former GPU candidate query remains available as a read-only diagnostic
+that starts at a caller-selected switch. Actual job candidate discovery and
+resource selection are handled by the generic `Placer` for CPU, GPU and mixed
+resource requirements.
+
+GPU diagnostic query (read-only, **not placement**):
 
 ```python
 from app.domain.leaf_spine import GpuCandidateFinder
@@ -169,19 +177,26 @@ candidates = GpuCandidateFinder(fabric).find_candidates(
 - `validate_structure()` reports nonfatal missing-uplink/attachment
   diagnostics. Partial graphs remain legal.
 
-## Deliberately deferred integration
+## Implemented placement integration
 
-1. Persist switches, endpoints, physical links and Node attachment in a
-   reviewed schema migration; add a **separate** leaf–spine topology type rather
-   than treating the existing `FAT_TREE` stub as implemented. Coordinate grids
-   should not be overloaded with network switch IDs.
-2. Build a transaction-local fabric snapshot in `Server._build_placer` and
-   extend `Placer`/`PlaceAlgorithm` contracts to support network-aware policy,
-   preserving the project's `SELECT ... FOR UPDATE` resource allocation
-   safety, quota/reservation behavior and strict queue ordering.
-3. Add atomic multi-server GPU allocation and explicit residual-bandwidth
-   reservations. v1 path feasibility does not account for contention,
-   ECMP/routing decisions, GPU model, NVLink, racks or multi-NIC hosts.
+- `Server._build_placer()` rebuilds the fabric from `Cluster.fabric_config` and
+  the transaction's locked ORM Nodes. It does not persist runtime graph objects.
+- `Placer` searches complete candidate groups, preferring fewer Nodes and then
+  the sum of pairwise path latency. Network constraints are optional; when
+  requested, all pairs must be reachable and the selected path must satisfy
+  the minimum nominal bandwidth and maximum latency.
+- `PackAlgorithm` and `SpreadAlgorithm` remain topology-independent policies.
+  They break ties after locality, and stable Node IDs break remaining ties.
+- Reservation-excluded Nodes are removed from candidate eligibility but remain
+  in the physical topology view.
+- Resource units are reserved only after a complete feasible group is chosen.
+
+## Deliberately deferred
+
+V1 does not reserve or track residual bandwidth. `Link.capacity_gbps` is
+nominal capacity and a path's bandwidth is its minimum link capacity. There is
+no contention model, ECMP/flow routing, GPU model, NVLink/NVSwitch, rack model,
+or multi-NIC host support.
 
 Run `PYTHONPATH=. pytest -v` and `ruff check .` in `backend/`. Existing grid
 placement tests must continue to pass unchanged.
