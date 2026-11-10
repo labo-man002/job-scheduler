@@ -162,6 +162,10 @@ class Server:
                         node_id=node.node_id, resource_type=resource_count.resource_type, resource_type_index=index
                     ))
         self.db.flush()
+        if topology_type == TopologyType.LEAF_SPINE:
+            # Validate the complete graph while the cluster-creation transaction
+            # is still open; invalid wiring must never be persisted.
+            self._build_leaf_spine_topology(cluster, list(cluster.nodes))
         logger.info("cluster %s created (%r, %d nodes)", cluster.cluster_id, cluster_name, len(node_specs))
         return cluster
 
