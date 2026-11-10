@@ -25,6 +25,7 @@ Node/ResourceNode objects.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from itertools import combinations
 from math import isfinite
 from typing import ClassVar
 
@@ -473,32 +474,45 @@ class Server:
             node_count = self.db.query(models.Node).filter_by(cluster_id=cluster.cluster_id).count()
             if capacity < job_size or node_count < min_nodes:
                 continue
-            if requirements is not None:
-                if sum(amount for _, amount in requirements) < min_nodes:
-                    continue
-                node_rows = self.db.query(models.Node).filter_by(cluster_id=cluster.cluster_id).all()
-                feasible = True
-                for resource_type, amount in requirements:
-                    per_node = sorted(
-                        (
-                            sum(1 for resource in node.resources if resource.resource_type == resource_type)
-                            for node in node_rows
-                        ),
-                        reverse=True,
-                    )
-                    if sum(per_node) < amount or (max_nodes is not None and sum(per_node[:max_nodes]) < amount):
-                        feasible = False
-                        break
-                if not feasible:
-                    continue
-            return cluster
-                continue
-            if requirements is not None and sum(amount for _, amount in requirements) < min_nodes:
+            if requirements is not None and not self._cluster_has_resource_group(
+                cluster.cluster_id, requirements, min_nodes, max_nodes
+            ):
                 continue
             return cluster
         logger.warning("job submission rejected: %s units requested, no cluster could ever fit it", job_size)
         raise JobTooLargeError(job_size)
 
+    def _cluster_has_resource_group(self, cluster_id, requirements, min_nodes, max_nodes):
+        """Exact inventory-only feasibility check for resource and node bounds."""
+        nodes = self.db.query(models.Node).filter_by(cluster_id=cluster_id).all()
+        upper = min(max_nodes or len(nodes), len(nodes))
+        for size in range(min_nodes, upper + 1):
+            for group in combinations(nodes, size):
+                capacities = [
+                    {
+                        resource_type: sum(
+                            1 for resource in node.resources if resource.resource_type == resource_type
+                        )
+                        for resource_type, _ in requirements
+                    }
+                    for node in group
+                ]
+                totals = {
+                    resource_type: sum(capacity[resource_type] for capacity in capacities)
+                    for resource_type, _ in requirements
+                }
+                if any(totals[resource_type] < amount for resource_type, amount in requirements):
+                    continue
+                if any(
+                    not any(
+                        totals[resource_type] - capacity[resource_type] < amount
+                        for resource_type, amount in requirements
+                    )
+                    for capacity in capacities
+                ):
+                    continue
+                return True
+        return False
     def _get_scheduler(self, cluster_id):
         if cluster_id not in Server._schedulers:
             scheduler = Scheduler(placer=None, sort_strategy=self.sort_strategy)
