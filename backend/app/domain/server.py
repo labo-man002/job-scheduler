@@ -473,8 +473,11 @@ class Server:
             node_count = self.db.query(models.Node).filter_by(cluster_id=cluster.cluster_id).count()
             if capacity < job_size or node_count < min_nodes:
                 continue
-            if requirements is not None and max_nodes is not None:
+            if requirements is not None:
+                if sum(amount for _, amount in requirements) < min_nodes:
+                    continue
                 node_rows = self.db.query(models.Node).filter_by(cluster_id=cluster.cluster_id).all()
+                feasible = True
                 for resource_type, amount in requirements:
                     per_node = sorted(
                         (
@@ -483,11 +486,12 @@ class Server:
                         ),
                         reverse=True,
                     )
-                    if sum(per_node[:max_nodes]) < amount:
+                    if sum(per_node) < amount or (max_nodes is not None and sum(per_node[:max_nodes]) < amount):
+                        feasible = False
                         break
-                else:
-                    if sum(amount for _, amount in requirements) >= min_nodes:
-                        return cluster
+                if not feasible:
+                    continue
+            return cluster
                 continue
             if requirements is not None and sum(amount for _, amount in requirements) < min_nodes:
                 continue
