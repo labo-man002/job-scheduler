@@ -56,3 +56,61 @@ The [canonical glossary](glossary.md) defines the terms used here and distinguis
 - **Move NIC attributes to `Node`.** `nic_capacity_gbps` (nullable until a NIC is configured) and `nic_state` (shared `OperationalState`, default `UP`) belong to Node. Existing `Node.status` remains the host-level state; `NodeStatus.DOWN` makes its network path unusable. The topology reads these values but does not own their persistence or mutate the ORM object.
 - **GPU inventory remains on `ResourceNode`.** The former `GpuServer` never owned GPU units. Free GPU IDs/counts continue to be derived from `Node.free_resources(ResourceType.GPU)`; no duplicate GPU attribute or inventory counter is added to Node or the fabric.
 - **Use Node identity throughout the fabric API.** Device references use `DeviceKind.NODE` plus the string form of `node_id`; links from a Node to a leaf use `LinkKind.NODE_LEAF`; path and candidate results identify `node_id` directly. The read-only candidate finder receives the same session-loaded Node instances registered in the topology.
+
+
+## Unified topology-aware placement decisions (2026-11-10)
+
+The following decisions define the Leaf–Spine integration and the generic
+placement behavior implemented on `feat/unified-topology-aware-placement`.
+
+- **One common topology contract.** `PlacementTopology` builds a
+  `PlacementTopologyView`; the view exposes reachability and distance, with
+  optional path latency and nominal bottleneck bandwidth. Grid and graph
+  implementations keep their own internal representations. `Placer` and
+  placement algorithms do not branch on topology type.
+- **Grid and graph configuration remain distinct.** Coordinate topologies
+  continue to use `dimension`, `wrap`, and Node coordinates. Leaf–Spine
+  clusters use a graph configuration and do not interpret grid dimensions or
+  wraparound.
+- **Explicit topology enum.** `LEAF_SPINE` is a separate
+  `TopologyType` value. `FAT_TREE` is not repurposed and remains unsupported.
+- **Per-cluster fabric persistence.** The complete switch and link
+  configuration is stored in `cluster.fabric_config` (PostgreSQL JSONB).
+  Node NIC capacity and state remain on the canonical `Node` row. The
+  transaction-local topology is rebuilt by `Server._build_placer()`; runtime
+  graph objects are not ORM entities.
+- **One placement orchestrator.** `Placer` performs generic resource
+  candidate discovery for CPU, GPU, and mixed jobs. The old
+  `GpuCandidateFinder` is retained only as a read-only root-switch diagnostic;
+  it is not a separate allocation or placement workflow.
+- **Node-count constraints.** Jobs default to `min_nodes=1` and
+  `max_nodes=None`. A single-node job sets both to 1; a multi-node job that
+  requires multiple hosts sets `min_nodes >= 2`; an exact two-node job sets
+  both to 2. Every selected Node must contribute at least one requested
+  resource unit.
+- **Exact group selection.** The placer searches candidate groups by ascending
+  group size. Among feasible groups of equal size, it minimizes the sum of
+  pairwise topology distances. Pack/Spread ranking breaks locality ties, and
+  Node ID provides the final deterministic tie-break. Search is exact and may
+  be combinatorial for large candidate sets; no approximate cutoff is silently
+  applied.
+- **Communication constraints are opt-in.** Jobs without network constraints
+  are not rejected for topology disconnection. If full connectivity is
+  requested, every pair in a multi-node group must be reachable. A requested
+  minimum bandwidth or maximum latency also requires every pair to have a
+  qualifying path.
+- **Path metrics.** Leaf–Spine path latency is the sum of link latencies.
+  Path bandwidth is the minimum nominal capacity along the selected path.
+  When a bandwidth or latency limit is supplied, path search must find a path
+  satisfying those limits, not merely test the unconstrained shortest path.
+- **No v1 network reservation.** Link capacity is nominal, not residual.
+  Placement does not reserve, consume, or release bandwidth; institute compute
+  reservations remain a separate Node-eligibility mechanism.
+- **Physical topology versus job eligibility.** The topology view represents
+  the full physical cluster inventory. Per-job reservation exclusions are
+  applied through eligible Node IDs, so a reserved Node does not disappear
+  from physical reachability or locality calculations.
+- **Atomic resource reservation.** Candidate search and group feasibility are
+  read-only. The placer constructs the complete resource plan first and only
+  then changes `ResourceNode.resource_status`, preventing partial allocations
+  when a group or network constraint is infeasible.
