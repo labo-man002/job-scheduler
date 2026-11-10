@@ -23,9 +23,9 @@ Node/ResourceNode objects.
 """
 
 import logging
-from math import isfinite
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import isfinite
 from typing import ClassVar
 
 from app import models
