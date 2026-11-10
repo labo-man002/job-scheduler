@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app import schemas
 from app.dependencies import DbDep
+from app.enums import OperationalState
 from app.domain.exceptions import ClusterNotFoundError
 from app.domain.server import NodeSpec, ResourceCount, Server
 
@@ -38,6 +39,7 @@ def create_cluster(payload: schemas.ClusterCreate, db: DbDep):
             coordinates=spec.coordinates,
             resources=[ResourceCount(resource_type=r.resource_type, count=r.count) for r in spec.resources],
             nic_capacity_gbps=spec.nic_capacity_gbps,
+            nic_state=OperationalState(spec.nic_state),
         )
         for spec in payload.nodes
     ]
