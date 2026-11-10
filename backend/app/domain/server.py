@@ -75,6 +75,7 @@ class NodeSpec:
     coordinates: list[int]
     resources: list[ResourceCount]
     nic_capacity_gbps: float | None = None
+    nic_state: OperationalState = OperationalState.UP
 
 
 _TOPOLOGY_AXES = {
@@ -150,7 +151,8 @@ class Server:
         self.db.flush()
         for spec in node_specs:
             node = models.Node(
-                cluster=cluster, coordinates=spec.coordinates, nic_capacity_gbps=spec.nic_capacity_gbps
+                cluster=cluster, coordinates=spec.coordinates, nic_capacity_gbps=spec.nic_capacity_gbps,
+                nic_state=spec.nic_state,
             )  # cluster set first: coordinate validation needs it
             self.db.add(node)
             self.db.flush()
