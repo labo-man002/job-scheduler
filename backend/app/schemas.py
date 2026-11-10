@@ -183,6 +183,7 @@ class ResourceCountIn(OurBaseModel):
 class ClusterNodeSpec(OurBaseModel):
     coordinates: list[int] = Field(default_factory=list)
     nic_capacity_gbps: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    nic_state: Literal["UP", "DOWN"] = "UP"
     resources: list[ResourceCountIn] = Field(min_length=1)
 
 
@@ -191,9 +192,16 @@ class LeafSpinePortGroupIn(OurBaseModel):
     speed_gbps: float = Field(gt=0, allow_inf_nan=False)
 
 
+class LeafSpinePortStateIn(OurBaseModel):
+    number: int = Field(gt=0)
+    state: Literal["UP", "DOWN"]
+
+
 class LeafSpineSwitchIn(OurBaseModel):
     switch_id: str = Field(min_length=1)
     role: Literal["LEAF", "SPINE"]
+    state: Literal["UP", "DOWN"] = "UP"
+    ports: list[LeafSpinePortStateIn] = Field(default_factory=list)
     model: str = Field(min_length=1)
     port_groups: list[LeafSpinePortGroupIn] = Field(min_length=1)
 
@@ -210,6 +218,7 @@ class LeafSpineLinkIn(OurBaseModel):
     b: LeafSpineEndpointIn
     capacity_gbps: float = Field(gt=0, allow_inf_nan=False)
     latency_us: float = Field(ge=0, allow_inf_nan=False)
+    state: Literal["UP", "DOWN"] = "UP"
 
 
 class LeafSpineFabricIn(OurBaseModel):
