@@ -68,6 +68,42 @@ describe("JobSubmitPage", () => {
     expect(api.POST).not.toHaveBeenCalled();
   });
 
+  it("submits node-count and network constraints", async () => {
+    vi.mocked(api.POST).mockResolvedValue({
+      data: { detail: "Job submitted", status_code: 201, job_id: 1000, status: "QUEUED" },
+      error: undefined,
+      response: new Response(),
+    } as never);
+
+    renderPage();
+    await screen.findByText("alice (client 1)");
+    await userEvent.selectOptions(screen.getByLabelText("Client"), "1");
+    await userEvent.clear(screen.getByLabelText("Amount for requirement 1"));
+    await userEvent.type(screen.getByLabelText("Amount for requirement 1"), "2");
+    await userEvent.clear(screen.getByLabelText("Minimum nodes"));
+    await userEvent.type(screen.getByLabelText("Minimum nodes"), "2");
+    await userEvent.clear(screen.getByLabelText("Maximum nodes (optional)"));
+    await userEvent.type(screen.getByLabelText("Maximum nodes (optional)"), "3");
+    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.type(screen.getByLabelText("Minimum path bandwidth (Gbps)"), "100");
+    await userEvent.type(screen.getByLabelText("Maximum path latency (µs)"), "10");
+    await userEvent.click(screen.getByRole("button", { name: /submit job/i }));
+
+    expect(api.POST).toHaveBeenCalledWith("/jobs", {
+      body: {
+        client_id: 1,
+        priority: "NORMAL",
+        duration: 60,
+        min_nodes: 2,
+        max_nodes: 3,
+        require_full_connectivity: true,
+        min_bandwidth_gbps: 100,
+        max_latency_us: 10,
+        requirements: [{ resource_type: "CPU", amount: 2 }],
+      },
+    });
+  });
+
   it("submits and navigates to the new job's detail page on success", async () => {
     vi.mocked(api.POST).mockResolvedValue({
       data: { detail: "Job submitted", status_code: 201, job_id: 999, status: "QUEUED" },
