@@ -21,6 +21,7 @@ class Placer:
         self.nodes = nodes
         self.algorithm = algorithm
         self.topology = topology
+        self.available_node_ids: set[int] | None = None
 
     def set_algorithm(self, algorithm: PlaceAlgorithm) -> None:
         self.algorithm = algorithm
@@ -33,11 +34,12 @@ class Placer:
             and all(len(node.free_resources(req.resource_type)) >= req.amount for req in job.requirements)
         ]
 
-    def find_candidates(self, job: Job) -> list[Node]:
+    def find_candidates(self, job: Job, nodes: list[Node] | None = None) -> list[Node]:
         """Generic candidate discovery used by placement for CPU, GPU, or mixed jobs."""
         required = {req.resource_type for req in job.requirements}
+        inventory = self.nodes if nodes is None else nodes
         return [
-            node for node in self.nodes
+            node for node in inventory
             if node.status != NodeStatus.DOWN
             and any(node.free_resources(resource_type) for resource_type in required)
         ]
@@ -53,7 +55,11 @@ class Placer:
             raise ValueError("max_nodes must be greater than or equal to min_nodes")
 
         view = self.topology.build_view(self.nodes)
-        candidates = self.find_candidates(job)
+        eligible_nodes = [
+            node for node in self.nodes
+            if self.available_node_ids is None or node.node_id in self.available_node_ids
+        ]
+        candidates = self.find_candidates(job, eligible_nodes)
         if not candidates or not self.has_enough_capacity(job, candidates):
             return None
 
