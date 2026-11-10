@@ -361,7 +361,9 @@ class Server:
         self._check_quota(client.institute_id, requirements)
 
         job_size = sum(amount for _, amount in requirements)
-        cluster = self._best_fit_cluster(job_size, min_nodes=min_nodes, max_nodes=max_nodes, requirements=requirements)  # reject jobs that can never meet their node bound
+        cluster = self._best_fit_cluster(
+            job_size, min_nodes=min_nodes, max_nodes=max_nodes, requirements=requirements
+        )  # reject jobs that can never meet their node bound
         # Fetch (and, on first use, seed) the scheduler before this job exists in the
         # DB as QUEUED -- otherwise seeding would pick it up too, then it gets
         # enqueued a second time below.
