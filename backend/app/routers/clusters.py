@@ -37,6 +37,7 @@ def create_cluster(payload: schemas.ClusterCreate, db: DbDep):
         NodeSpec(
             coordinates=spec.coordinates,
             resources=[ResourceCount(resource_type=r.resource_type, count=r.count) for r in spec.resources],
+            nic_capacity_gbps=spec.nic_capacity_gbps,
         )
         for spec in payload.nodes
     ]
@@ -47,6 +48,7 @@ def create_cluster(payload: schemas.ClusterCreate, db: DbDep):
             dimension=payload.dimension,
             wrap=payload.wrap,
             node_specs=node_specs,
+            fabric_config=payload.fabric.model_dump(mode="json") if payload.fabric is not None else None,
         )
         db.commit()
     except ValueError as error:  # bad topology/dimension/wrap shape, or a node's coordinates don't fit it
