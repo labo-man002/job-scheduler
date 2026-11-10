@@ -5,7 +5,7 @@ from app.models.node import Node
 from app.models.resourceNode import ResourceNode
 
 from .place_algorithm import PlaceAlgorithm
-from .topology import Topology
+from .topology import PlacementTopology
 
 
 class Placer:
@@ -14,7 +14,7 @@ class Placer:
     and calls place()/release_resource() (Server, out of scope for this ticket) is
     responsible for the session and for committing afterward."""
 
-    def __init__(self, nodes: list[Node], algorithm: PlaceAlgorithm, topology: Topology):
+    def __init__(self, nodes: list[Node], algorithm: PlaceAlgorithm, topology: PlacementTopology):
         self.nodes = nodes
         self.algorithm = algorithm
         self.topology = topology
