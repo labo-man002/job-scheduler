@@ -584,7 +584,7 @@ class Server:
                 scheduler.placer = placer
 
             excluded = self._reserved_node_ids(cluster_id, job.client.institute_id)
-            placer.nodes = [n for n in all_nodes if n.node_id not in excluded]
+            placer.available_node_ids = {n.node_id for n in all_nodes if n.node_id not in excluded}
 
             reserved = scheduler.attempt_placement(job)
             if not reserved:
