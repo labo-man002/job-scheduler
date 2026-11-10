@@ -1,3 +1,12 @@
+from app.domain.leaf_spine import (
+    DeviceKind,
+    EndpointRef,
+    LeafSpineTopology,
+    PortGroupConfig,
+    Switch,
+    SwitchHardwareConfig,
+    SwitchRole,
+)
 from app.domain.place_algorithm import PackAlgorithm, SpreadAlgorithm
 from app.domain.placer import Placer
 from app.domain.topology import Topology
@@ -92,3 +101,32 @@ def test_filter_nodes_excludes_insufficient_capacity():
 
     result = placer.filter_nodes([small, big], make_job(1, amount=2))
     assert result == [big]
+
+
+
+def test_placer_uses_leaf_spine_topology_through_common_contract():
+    nodes = [
+        make_node(70, [0], resource_count=2, nic_capacity_gbps=100),
+        make_node(71, [1], resource_count=2, nic_capacity_gbps=100),
+    ]
+    topology = LeafSpineTopology()
+    topology.add_switch(
+        Switch("leaf", SwitchRole.LEAF, SwitchHardwareConfig("test", (PortGroupConfig(4, 200),)))
+    )
+    for node in nodes:
+        topology.add_node(node)
+    for index, node in enumerate(nodes, start=1):
+        topology.add_link(
+            EndpointRef(DeviceKind.SWITCH, "leaf", f"p{index}"),
+            EndpointRef(DeviceKind.NODE, str(node.node_id), "nic0"),
+            capacity_gbps=100,
+            latency_us=index,
+        )
+
+    nodes[0].status = NodeStatus.ALLOCATED
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    reserved = placer.place(make_job(70))
+
+    assert reserved is not None
+    assert reserved[0].node is nodes[0]
