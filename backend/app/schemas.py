@@ -43,6 +43,11 @@ class JobCreate(OurBaseModel):
     client_id: int
     priority: Priority = Priority.NORMAL
     duration: int = Field(gt=0)
+    min_nodes: int = Field(default=1, ge=1)
+    max_nodes: int | None = Field(default=None, ge=1)
+    require_full_connectivity: bool = False
+    min_bandwidth_gbps: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    max_latency_us: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     requirements: list[ResourceRequirementIn] = Field(min_length=1)
 
 
@@ -83,6 +88,11 @@ class ResourceRequirementOut(OurBaseModel):
 
 class JobDetailOut(OurBaseModel):
     job_id: int
+    min_nodes: int
+    max_nodes: int | None
+    require_full_connectivity: bool
+    min_bandwidth_gbps: float | None
+    max_latency_us: float | None
     client_id: int
     status: JobStatus
     priority: Priority
@@ -171,7 +181,7 @@ class ClusterNodeSpec(OurBaseModel):
 class ClusterCreate(OurBaseModel):
     cluster_name: str = Field(min_length=1)
     topology_type: TopologyType
-    dimension: list[int] = Field(min_length=1)
+    dimension: list[int] = Field(default_factory=list)
     wrap: bool = False
     nodes: list[ClusterNodeSpec] = Field(min_length=1)
 
