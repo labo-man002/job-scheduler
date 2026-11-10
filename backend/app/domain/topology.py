@@ -37,6 +37,22 @@ class PlacementTopologyView(ABC):
         """Nominal bottleneck bandwidth when modeled; otherwise None."""
         return None
 
+    def path_metrics(
+        self, a: Node, b: Node, *,
+        min_bandwidth_gbps: float | None = None,
+        max_latency_us: float | None = None,
+    ) -> tuple[float, float] | None:
+        """Return a path satisfying optional constraints, as (latency, bottleneck)."""
+        latency = self.path_latency(a, b)
+        bandwidth = self.path_bandwidth(a, b)
+        if latency is None or bandwidth is None:
+            return None
+        if min_bandwidth_gbps is not None and bandwidth < min_bandwidth_gbps:
+            return None
+        if max_latency_us is not None and latency > max_latency_us:
+            return None
+        return latency, bandwidth
+
 
 class PlacementTopology(ABC):
     """Factory for a disposable, read-only view used during one placement attempt."""
