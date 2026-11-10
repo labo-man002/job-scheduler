@@ -174,15 +174,34 @@ classDiagram
     class PackAlgorithm
     class SpreadAlgorithm
 
+    class PlacementTopology {
+        <<abstract>>
+        +build_view(nodes)
+    }
+    class PlacementTopologyView {
+        <<abstract>>
+        +nodes
+        +is_reachable(a, b)
+        +distance(a, b)
+        +path_metrics(a, b, constraints)
+    }
     class Topology {
         +cluster: Cluster
         +build_view(nodes)
     }
     class TopologyView {
-        +cluster: Cluster
-        +nodes: list~Node~
         +neighbors(node)
+        +is_reachable(a, b)
         +distance(a, b)
+    }
+    class LeafSpineTopology {
+        +build_view(nodes)
+        +find_node_path(a, b, constraints)
+    }
+    class LeafSpineTopologyView {
+        +is_reachable(a, b)
+        +distance(a, b)
+        +path_metrics(a, b, constraints)
     }
     class Cluster {
         +cluster_id: int
@@ -210,15 +229,22 @@ classDiagram
     SortStrategy <|-- FifoSort
     SortStrategy <|-- PrioritySort
     Placer --> PlaceAlgorithm : selects or ranks with
-    PlaceAlgorithm ..> TopologyView : reads distances from
-    Placer ..> TopologyView : passes to policy
+    PlaceAlgorithm ..> PlacementTopologyView : reads topology metrics from
+    Placer ..> PlacementTopologyView : passes to policy
     PlaceAlgorithm <|-- PackAlgorithm
     PlaceAlgorithm <|-- SpreadAlgorithm
     Placer --> Node : holds eligible locked nodes
-    Placer --> Topology : uses
+    Placer --> PlacementTopology : uses
+    PlacementTopology <|-- Topology
+    PlacementTopology <|-- LeafSpineTopology
+    PlacementTopologyView <|-- TopologyView
+    PlacementTopologyView <|-- LeafSpineTopologyView
     Topology --> TopologyView : builds
+    LeafSpineTopology --> LeafSpineTopologyView : builds
     Topology --> Cluster : configured by
+    LeafSpineTopology --> Cluster : rebuilt from fabric_config
     TopologyView --> Node : indexes
+    LeafSpineTopologyView --> Node : indexes
     Cluster "1" --> "*" Node : contains
     Node "1" *-- "*" ResourceNode : contains
 ```
