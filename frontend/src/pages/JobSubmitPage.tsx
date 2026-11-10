@@ -36,6 +36,11 @@ export function JobSubmitPage() {
   const [clientId, setClientId] = useState<number | "">("");
   const [priority, setPriority] = useState<Priority>("NORMAL");
   const [duration, setDuration] = useState(60);
+  const [minNodes, setMinNodes] = useState(1);
+  const [maxNodes, setMaxNodes] = useState<number | "">("");
+  const [requireFullConnectivity, setRequireFullConnectivity] = useState(false);
+  const [minBandwidth, setMinBandwidth] = useState<number | "">("");
+  const [maxLatency, setMaxLatency] = useState<number | "">("");
   const [requirements, setRequirements] = useState<RequirementRow[]>([{ resource_type: "CPU", amount: 1 }]);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -46,8 +51,11 @@ export function JobSubmitPage() {
           client_id: clientId as number,
           priority,
           duration,
-          min_nodes: 1,
-          require_full_connectivity: false,
+          min_nodes: minNodes,
+          max_nodes: maxNodes === "" ? undefined : maxNodes,
+          require_full_connectivity: requireFullConnectivity,
+          ...(minBandwidth === "" ? {} : { min_bandwidth_gbps: minBandwidth }),
+          ...(maxLatency === "" ? {} : { max_latency_us: maxLatency }),
           requirements,
         },
       });
@@ -70,6 +78,10 @@ export function JobSubmitPage() {
 
     if (clientId === "") {
       setFormError("Pick a client.");
+      return;
+    }
+    if (maxNodes !== "" && maxNodes < minNodes) {
+      setFormError("Maximum nodes must be greater than or equal to minimum nodes.");
       return;
     }
     const resourceTypes = requirements.map((r) => r.resource_type);
@@ -146,6 +158,34 @@ export function JobSubmitPage() {
           </div>
         </div>
 
+        <div className="space-y-3 rounded-md border p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Placement constraints</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label htmlFor="job-min-nodes" className="text-xs font-medium text-muted-foreground">Minimum nodes</label>
+              <input id="job-min-nodes" type="number" min={1} required className={INPUT_CLASS + " w-full"} value={minNodes} onChange={(e) => setMinNodes(Number(e.target.value))} />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="job-max-nodes" className="text-xs font-medium text-muted-foreground">Maximum nodes (optional)</label>
+              <input id="job-max-nodes" type="number" min={minNodes} className={INPUT_CLASS + " w-full"} placeholder="No limit" value={maxNodes} onChange={(e) => setMaxNodes(e.target.value === "" ? "" : Number(e.target.value))} />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={requireFullConnectivity} onChange={(e) => setRequireFullConnectivity(e.target.checked)} />
+            Require every selected node to reach every other selected node
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label htmlFor="job-min-bandwidth" className="text-xs font-medium text-muted-foreground">Minimum path bandwidth (Gbps)</label>
+              <input id="job-min-bandwidth" type="number" min={0.001} step="any" className={INPUT_CLASS + " w-full"} placeholder="No minimum" value={minBandwidth} onChange={(e) => setMinBandwidth(e.target.value === "" ? "" : Number(e.target.value))} />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="job-max-latency" className="text-xs font-medium text-muted-foreground">Maximum path latency (µs)</label>
+              <input id="job-max-latency" type="number" min={0} step="any" className={INPUT_CLASS + " w-full"} placeholder="No maximum" value={maxLatency} onChange={(e) => setMaxLatency(e.target.value === "" ? "" : Number(e.target.value))} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Bandwidth and latency limits require a qualifying path between every pair of selected nodes. Bandwidth is nominal link capacity, not reserved capacity.</p>
+        </div>
         <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resource requirements</label>
           {requirements.map((row, i) => (
