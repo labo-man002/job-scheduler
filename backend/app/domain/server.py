@@ -23,6 +23,7 @@ Node/ResourceNode objects.
 """
 
 import logging
+from math import isfinite
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import ClassVar
@@ -140,6 +141,8 @@ class Server:
         _validate_cluster_shape(topology_type, dimension, wrap)
         if topology_type == TopologyType.LEAF_SPINE and not fabric_config:
             raise ValueError("LEAF_SPINE requires a fabric configuration")
+        if topology_type == TopologyType.LEAF_SPINE and any(spec.nic_capacity_gbps is None for spec in node_specs):
+            raise ValueError("every LEAF_SPINE compute Node requires nic_capacity_gbps")
         if topology_type != TopologyType.LEAF_SPINE and fabric_config is not None:
             raise ValueError("fabric configuration is only valid for LEAF_SPINE clusters")
 
@@ -329,10 +332,16 @@ class Server:
             raise ValueError("min_nodes must be a positive integer")
         if max_nodes is not None and (type(max_nodes) is not int or max_nodes < min_nodes):
             raise ValueError("max_nodes must be greater than or equal to min_nodes")
-        if min_bandwidth_gbps is not None and min_bandwidth_gbps <= 0:
-            raise ValueError("min_bandwidth_gbps must be positive")
-        if max_latency_us is not None and max_latency_us < 0:
-            raise ValueError("max_latency_us must be nonnegative")
+        if min_bandwidth_gbps is not None and (
+            not isinstance(min_bandwidth_gbps, (int, float)) or isinstance(min_bandwidth_gbps, bool)
+            or not isfinite(min_bandwidth_gbps) or min_bandwidth_gbps <= 0
+        ):
+            raise ValueError("min_bandwidth_gbps must be positive and finite")
+        if max_latency_us is not None and (
+            not isinstance(max_latency_us, (int, float)) or isinstance(max_latency_us, bool)
+            or not isfinite(max_latency_us) or max_latency_us < 0
+        ):
+            raise ValueError("max_latency_us must be nonnegative and finite")
         resource_types = [resource_type for resource_type, _ in requirements]
         if len(resource_types) != len(set(resource_types)):
             # Placer.place() keys its "needed" dict by resource_type (app/domain/placer.py) --
