@@ -51,6 +51,12 @@ class JobCreate(OurBaseModel):
     max_latency_us: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     requirements: list[ResourceRequirementIn] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _validate_node_range(self):
+        if self.max_nodes is not None and self.max_nodes < self.min_nodes:
+            raise ValueError("max_nodes must be greater than or equal to min_nodes")
+        return self
+
 
 class JobOut(BaseOut):
     job_id: int
