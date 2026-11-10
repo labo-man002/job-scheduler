@@ -47,44 +47,13 @@ class Placer:
     def place(self, job: Job) -> list[ResourceNode] | None:
         if not job.requirements:
             return None
-        min_nodes = getattr(job, "min_nodes", 1) or 1
-        max_nodes = getattr(job, "max_nodes", None)
-        if type(min_nodes) is not int or min_nodes < 1:
-            raise ValueError("min_nodes must be a positive integer")
-        if max_nodes is not None and (type(max_nodes) is not int or max_nodes < min_nodes):
-            raise ValueError("max_nodes must be greater than or equal to min_nodes")
-
         view = self.topology.build_view(self.nodes)
         eligible_nodes = [
             node for node in self.nodes
             if self.available_node_ids is None or node.node_id in self.available_node_ids
         ]
         candidates = self.find_candidates(job, eligible_nodes)
-        if not candidates or not self.has_enough_capacity(job, candidates):
-            return None
-
-        ranked = self.algorithm.rank(candidates, job, view)
-        rank_index = {node.node_id: index for index, node in enumerate(ranked)}
-        upper = min(max_nodes or len(ranked), len(ranked))
-        selected_group = None
-
-        # Exact deterministic search: smallest group first, then pairwise
-        # locality, then Pack/Spread preference, then stable Node IDs.
-        for size in range(min_nodes, upper + 1):
-            feasible = []
-            for group in combinations(ranked, size):
-                if not self._has_capacity(job, group) or not self._every_node_contributes(job, group):
-                    continue
-                if not self._satisfies_network_constraints(job, group, view):
-                    continue
-                locality = sum(view.distance(a, b) for a, b in combinations(group, 2))
-                policy_tie = sum(rank_index[node.node_id] for node in group)
-                ids = tuple(sorted(node.node_id for node in group))
-                feasible.append(((locality, policy_tie, ids), group))
-            if feasible:
-                selected_group = min(feasible, key=lambda item: item[0])[1]
-                break
-
+        selected_group = self._select_group(job, candidates, view)
         if selected_group is None:
             return None
 
@@ -101,7 +70,7 @@ class Placer:
                 remaining[resource_type] -= len(units)
             if taken:
                 plan.append((node, taken))
-        if any(amount > 0 for amount in remaining.values()):
+        if any(amount > 0 for amount in remaining.values()) or len(plan) != len(selected_group):
             return None  # defensive: inventory changed between planning and reservation
 
         reserved = []
@@ -111,6 +80,49 @@ class Placer:
                 reserved.append(resource)
             self._recompute_status(node)
         return reserved
+
+    def can_place(self, job: Job) -> bool:
+        """Read-only feasibility check using the current per-job eligibility set."""
+        if not job.requirements:
+            return False
+        view = self.topology.build_view(self.nodes)
+        eligible_nodes = [
+            node for node in self.nodes
+            if self.available_node_ids is None or node.node_id in self.available_node_ids
+        ]
+        candidates = self.find_candidates(job, eligible_nodes)
+        return self._select_group(job, candidates, view) is not None
+
+    def _select_group(self, job: Job, candidates: list[Node], view) -> tuple[Node, ...] | None:
+        min_nodes = getattr(job, "min_nodes", 1) or 1
+        max_nodes = getattr(job, "max_nodes", None)
+        if type(min_nodes) is not int or min_nodes < 1:
+            raise ValueError("min_nodes must be a positive integer")
+        if max_nodes is not None and (type(max_nodes) is not int or max_nodes < min_nodes):
+            raise ValueError("max_nodes must be greater than or equal to min_nodes")
+        if not candidates or not self.has_enough_capacity(job, candidates):
+            return None
+
+        ranked = self.algorithm.rank(candidates, job, view)
+        rank_index = {node.node_id: index for index, node in enumerate(ranked)}
+        upper = min(max_nodes or len(ranked), len(ranked))
+
+        # Exact deterministic search: smallest group first, then pairwise
+        # locality, then Pack/Spread preference, then stable Node IDs.
+        for size in range(min_nodes, upper + 1):
+            feasible = []
+            for group in combinations(ranked, size):
+                if not self._has_capacity(job, group) or not self._every_node_contributes(job, group):
+                    continue
+                if not self._satisfies_network_constraints(job, group, view):
+                    continue
+                locality = sum(view.distance(a, b) for a, b in combinations(group, 2))
+                policy_tie = sum(rank_index[node.node_id] for node in group)
+                ids = tuple(sorted(node.node_id for node in group))
+                feasible.append(((locality, policy_tie, ids), group))
+            if feasible:
+                return min(feasible, key=lambda item: item[0])[1]
+        return None
 
     def _has_capacity(self, job: Job, group: tuple[Node, ...] | list[Node]) -> bool:
         for req in job.requirements:
