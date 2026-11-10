@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException
 
 from app import schemas
 from app.dependencies import DbDep
-from app.enums import OperationalState
 from app.domain.exceptions import ClusterNotFoundError
 from app.domain.server import NodeSpec, ResourceCount, Server
+from app.enums import OperationalState
 
 router = APIRouter(prefix="/clusters", tags=["Clusters"])
 
@@ -14,6 +14,8 @@ def _node_out(node):
         node_id=node.node_id,
         coordinates=node.coordinates,
         status=node.status,
+        nic_capacity_gbps=node.nic_capacity_gbps,
+        nic_state=node.nic_state.value,
         resources=[schemas.NodeResourceOut(**summary) for summary in node.resource_summary()],
     )
 
@@ -25,6 +27,7 @@ def _cluster_detail_out(cluster):
         topology_type=cluster.topology_type,
         dimension=cluster.dimension,
         wrap=cluster.wrap,
+        fabric=cluster.fabric_config,
         total_capacity=cluster.total_capacity(),
         free_capacity=cluster.free_capacity(),
         nodes=[_node_out(node) for node in cluster.nodes],
@@ -70,6 +73,7 @@ def list_clusters(db: DbDep):
             topology_type=cluster.topology_type,
             dimension=cluster.dimension,
             wrap=cluster.wrap,
+            fabric=cluster.fabric_config,
             total_capacity=cluster.total_capacity(),
             free_capacity=cluster.free_capacity(),
         )
