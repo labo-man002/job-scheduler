@@ -421,15 +421,17 @@ class LeafSpineTopologyView(PlacementTopologyView):
 
     def __init__(self, topology: LeafSpineTopology, nodes: list[Node]):
         self.topology = topology
-        self._nodes = list(nodes)
-        by_id = {node.node_id: node for node in self._nodes}
-        if len(by_id) != len(self._nodes):
+        supplied_by_id = {node.node_id: node for node in nodes}
+        if len(supplied_by_id) != len(nodes):
             raise ValueError("placement inventory contains duplicate Node IDs")
-        for node in self._nodes:
+        for node in nodes:
             if topology.get_node(node.node_id) is not node:
                 raise ValueError(
                     f"placement Node {node.node_id} is not the registered Leaf-Spine Node instance"
                 )
+        # The view represents the physical fabric, not a per-job reservation
+        # filter. Occupied/reserved Nodes remain visible for locality scoring.
+        self._nodes = list(topology.nodes())
 
     @property
     def nodes(self) -> list[Node]:
