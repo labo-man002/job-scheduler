@@ -15,6 +15,11 @@ class PlacementTopologyView(ABC):
     whether compute Nodes can communicate and how costly their connection is.
     """
 
+    @property
+    @abstractmethod
+    def nodes(self) -> list[Node]:
+        raise NotImplementedError
+
     @abstractmethod
     def is_reachable(self, a: Node, b: Node) -> bool:
         raise NotImplementedError
