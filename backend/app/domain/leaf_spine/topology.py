@@ -406,9 +406,11 @@ class LeafSpineTopologyView(PlacementTopologyView):
         by_id = {node.node_id: node for node in self._nodes}
         if len(by_id) != len(self._nodes):
             raise ValueError("placement inventory contains duplicate Node IDs")
-        for registered in topology.nodes():
-            if by_id.get(registered.node_id) is not registered:
-                raise ValueError(f"Leaf-Spine Node {registered.node_id} is missing from or differs from placement inventory")
+        for node in self._nodes:
+            if topology.get_node(node.node_id) is not node:
+                raise ValueError(
+                    f"placement Node {node.node_id} is not the registered Leaf-Spine Node instance"
+                )
 
     @property
     def nodes(self) -> list[Node]:
