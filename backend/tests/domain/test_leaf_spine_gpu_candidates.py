@@ -14,9 +14,10 @@ from app.domain.leaf_spine import (
     SwitchHardwareConfig,
     SwitchRole,
 )
-from app.enums import NodeStatus, ResourceStatus, ResourceType
+from app.enums import NodeStatus, ResourceStatus, ResourceType, TopologyType
 from app.models.node import Node
-from tests.factories import make_node
+from app.domain.server import Server
+from tests.factories import make_cluster, make_node
 
 
 def fabric(nodes):
@@ -146,3 +147,43 @@ def test_leaf_spine_placement_view_accepts_reserved_node_subset():
 
     view = topo.build_view([first])
     assert view.nodes == [first, second]
+
+
+
+def test_persisted_leaf_spine_config_rebuilds_runtime_topology():
+    first = make_node(60, [], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    second = make_node(61, [], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    cluster = make_cluster(1, [], False, topology_type=TopologyType.LEAF_SPINE)
+    cluster.fabric_config = {
+        "switches": [
+            {
+                "switch_id": "leaf-1",
+                "role": "LEAF",
+                "model": "demo",
+                "port_groups": [{"count": 2, "speed_gbps": 200}],
+            }
+        ],
+        "links": [
+            {
+                "link_id": "node-60",
+                "a": {"device_kind": "SWITCH", "device_id": "leaf-1", "endpoint_id": "p1"},
+                "b": {"device_kind": "NODE", "device_id": "60", "endpoint_id": "nic0"},
+                "capacity_gbps": 100,
+                "latency_us": 1,
+            },
+            {
+                "link_id": "node-61",
+                "a": {"device_kind": "SWITCH", "device_id": "leaf-1", "endpoint_id": "p2"},
+                "b": {"device_kind": "NODE", "device_id": "61", "endpoint_id": "nic0"},
+                "capacity_gbps": 100,
+                "latency_us": 1,
+            },
+        ],
+    }
+
+    topology = Server._build_leaf_spine_topology(cluster, [first, second])
+    view = topology.build_view([first, second])
+
+    assert view.is_reachable(first, second)
+    assert view.distance(first, second) == 2
+    assert view.path_bandwidth(first, second) == 100
