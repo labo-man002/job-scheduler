@@ -43,11 +43,11 @@ from app.domain.exceptions import (
     ReservationConflictError,
     ReservationNotFoundError,
 )
-from app.domain.place_algorithm import PackAlgorithm
 from app.domain.leaf_spine import (
     DeviceKind, EndpointRef, LeafSpineTopology, OperationalState, PortGroupConfig,
     Switch, SwitchHardwareConfig, SwitchRole,
 )
+from app.domain.place_algorithm import PackAlgorithm
 from app.domain.placer import Placer
 from app.domain.scheduler import PendingJob, Scheduler
 from app.domain.sort_strategy import PrioritySort
