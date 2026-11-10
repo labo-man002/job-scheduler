@@ -50,7 +50,6 @@ classDiagram
   class Link
   class EndpointRef
   class NetworkPath
-  class GpuCandidateFinder
   SwitchHardwareConfig *-- PortGroupConfig
   Switch --> SwitchHardwareConfig
   Switch *-- Port
@@ -59,8 +58,6 @@ classDiagram
   LeafSpineTopology *-- Link
   Node "1" *-- "*" ResourceNode : owns GPU inventory
   Link --> EndpointRef : a and b
-  GpuCandidateFinder --> LeafSpineTopology : reads
-  GpuCandidateFinder --> Node : reads GPU units
   LeafSpineTopology ..> NetworkPath : returns
 ```
 
@@ -120,22 +117,10 @@ assert path.link_ids == ("link-1", "link-2")
 assert path.total_latency_us == 3
 ```
 
-The former GPU candidate query remains available as a read-only diagnostic
-that starts at a caller-selected switch. Actual job candidate discovery and
-resource selection are handled by the generic `Placer` for CPU, GPU and mixed
-resource requirements.
-
-GPU diagnostic query (read-only, **not placement**):
-
-```python
-from app.domain.leaf_spine import GpuCandidateFinder
-
-# Use the same session-loaded Node instances that were registered with fabric.
-candidates = GpuCandidateFinder(fabric).find_candidates(
-    "spine-1", [node], min_free_gpus_per_node=2,
-    min_link_capacity_gbps=100, max_total_latency_us=10,
-)
-```
+Actual job candidate discovery for CPU, GPU, and mixed-resource requests
+belongs exclusively to the generic `Placer`. The Leaf–Spine topology only
+answers network questions through `PlacementTopologyView`; it does not
+inspect GPU inventory or select compute candidates.
 
 ## API and invariants
 
@@ -167,13 +152,10 @@ candidates = GpuCandidateFinder(fabric).find_candidates(
   fewer hops, then lexical sequences of link IDs. A latency threshold includes
   the final NIC access link. A returned path is an instantaneous snapshot,
   not a reservation.
-- `GpuCandidateFinder` reads `Node.free_resources(ResourceType.GPU)` and
-  excludes `NodeStatus.DOWN`. The Node objects supplied to the finder must be
-  the same ORM instances registered in the topology and must cover its
-  registered Nodes, with each Node's `resources` relationship already loaded
-  by the caller. Unloaded resources are rejected to prevent implicit ORM
-  lazy-load queries. It does not mutate, flush, persist, or issue database
-  queries. Results are sorted by path latency, then Node ID.
+- The topology does not inspect `ResourceNode` inventory. `Placer` receives
+  the session-loaded Nodes, discovers CPU/GPU/mixed-resource candidates, and
+  combines resource feasibility with the topology view's reachability and
+  path metrics.
 - `validate_structure()` reports nonfatal missing-uplink/attachment
   diagnostics. Partial graphs remain legal.
 
