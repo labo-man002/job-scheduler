@@ -10,7 +10,7 @@ from app.domain.leaf_spine import (
 from app.domain.place_algorithm import PackAlgorithm, SpreadAlgorithm
 from app.domain.placer import Placer
 from app.domain.topology import Topology
-from app.enums import NodeStatus, ResourceStatus
+from app.enums import NodeStatus, ResourceStatus, ResourceType
 from tests.factories import make_cluster, make_job, make_node
 
 
@@ -205,3 +205,28 @@ def test_bandwidth_and_latency_constraints_apply_to_pairwise_paths():
 
     job.max_latency_us = 3
     assert len(placer.place(job)) == 3
+
+
+
+def test_placer_discovers_and_places_gpu_resources_through_leaf_spine_topology():
+    nodes = [
+        make_node(110, [0], resource_count=2, resource_type=ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(111, [1], resource_count=2, resource_type=ResourceType.GPU, nic_capacity_gbps=100),
+    ]
+    topology = _leaf_fabric(nodes)
+    job = make_job(110, resource_type=ResourceType.GPU, amount=3)
+    job.min_nodes = 2
+    job.max_nodes = 2
+    job.require_full_connectivity = True
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    candidates = placer.find_candidates(job)
+    assert candidates == nodes
+
+    reserved = placer.place(job)
+
+    assert reserved is not None
+    assert len(reserved) == 3
+    assert all(resource.resource_type == ResourceType.GPU for resource in reserved)
+    assert {resource.node.node_id for resource in reserved} == {110, 111}
+    assert all(resource.resource_status == ResourceStatus.ALLOCATED for resource in reserved)
