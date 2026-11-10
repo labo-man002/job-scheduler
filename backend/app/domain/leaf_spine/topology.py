@@ -34,6 +34,8 @@ from .types import (
     UnknownLinkError,
 )
 
+from ..topology import PlacementTopology, PlacementTopologyView
+
 
 class LeafSpineTopology(PlacementTopology):
     """The only connection mutation gateway; Node identity is shared with ORM.
