@@ -13,8 +13,6 @@ from math import isfinite
 from app.enums import NodeStatus
 from app.models.node import Node
 
-from ..topology import PlacementTopology, PlacementTopologyView
-
 from .devices import Switch
 from .link import Link, NetworkPath
 from .types import (
@@ -33,7 +31,6 @@ from .types import (
     UnknownEndpointError,
     UnknownLinkError,
 )
-
 from ..topology import PlacementTopology, PlacementTopologyView
 
 
