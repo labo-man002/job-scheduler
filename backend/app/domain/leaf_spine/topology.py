@@ -13,6 +13,8 @@ from math import isfinite
 from app.enums import NodeStatus
 from app.models.node import Node
 
+from ..topology import PlacementTopology, PlacementTopologyView
+
 from .devices import Switch
 from .link import Link, NetworkPath
 from .types import (
@@ -33,7 +35,7 @@ from .types import (
 )
 
 
-class LeafSpineTopology:
+class LeafSpineTopology(PlacementTopology):
     """The only connection mutation gateway; Node identity is shared with ORM.
 
     Link records are canonical. _incident_links and _endpoint_link are derived
@@ -49,6 +51,9 @@ class LeafSpineTopology:
         self._incident_links: dict[DeviceRef, set[str]] = {}
         self._endpoint_link: dict[EndpointRef, str] = {}
         self._next_link_id = 1
+
+    def build_view(self, nodes: list[Node]) -> "LeafSpineTopologyView":
+        return LeafSpineTopologyView(self, nodes)
 
     def add_switch(self, switch: Switch) -> None:
         if not isinstance(switch, Switch):
@@ -334,6 +339,37 @@ class LeafSpineTopology:
                     )
         return None
 
+    def find_node_path(self, source_node_id: int, target_node_id: int) -> NetworkPath | None:
+        """Find the deterministic shortest operational path between compute Nodes."""
+        self.get_node(source_node_id)
+        self.get_node(target_node_id)
+        if source_node_id == target_node_id:
+            return NetworkPath((DeviceRef(DeviceKind.NODE, str(source_node_id)),), (), 0.0, float("inf"))
+        source = DeviceRef(DeviceKind.NODE, str(source_node_id))
+        target = DeviceRef(DeviceKind.NODE, str(target_node_id))
+        if self.get_node(source_node_id).status == NodeStatus.DOWN or self.get_node(target_node_id).status == NodeStatus.DOWN:
+            return None
+        sequence = count()
+        heap = [(0.0, 0, (), next(sequence), source, (source,), float("inf"))]
+        best = {source: (0.0, 0, ())}
+        while heap:
+            latency, hops, links, _, current, devices, bottleneck = heappop(heap)
+            if best[current] != (latency, hops, links):
+                continue
+            if current == target:
+                return NetworkPath(devices, links, latency, bottleneck)
+            for link_id in sorted(self._incident_links[current]):
+                link = self._links[link_id]
+                if not self._operational(link):
+                    continue
+                other = link.b.device if link.a.device == current else link.a.device
+                if other.kind == DeviceKind.NODE and other != target:
+                    continue
+                key = (latency + link.latency_us, hops + 1, (*links, link.id))
+                if key < best.get(other, (float("inf"), float("inf"), ())):
+                    best[other] = key
+                    heappush(heap, (*key, next(sequence), other, (*devices, other), min(bottleneck, link.capacity_gbps)))
+        return None
     def validate_structure(self) -> tuple[str, ...]:
         """Nonfatal structural diagnostics (partial graphs are still legal)."""
         messages = []
@@ -359,3 +395,36 @@ class LeafSpineTopology:
         assert incident == self._incident_links
         assert endpoint_link == self._endpoint_link
         assert set(self._nodes) == {str(node.node_id) for node in self._nodes.values()}
+
+
+class LeafSpineTopologyView(PlacementTopologyView):
+    """Read-only adapter from a Leaf-Spine graph to the placement contract."""
+
+    def __init__(self, topology: LeafSpineTopology, nodes: list[Node]):
+        self.topology = topology
+        self._nodes = list(nodes)
+        by_id = {node.node_id: node for node in self._nodes}
+        if len(by_id) != len(self._nodes):
+            raise ValueError("placement inventory contains duplicate Node IDs")
+        for registered in topology.nodes():
+            if by_id.get(registered.node_id) is not registered:
+                raise ValueError(f"Leaf-Spine Node {registered.node_id} is missing from or differs from placement inventory")
+
+    @property
+    def nodes(self) -> list[Node]:
+        return self._nodes
+
+    def is_reachable(self, a: Node, b: Node) -> bool:
+        return self.topology.find_node_path(a.node_id, b.node_id) is not None
+
+    def distance(self, a: Node, b: Node) -> float:
+        path = self.topology.find_node_path(a.node_id, b.node_id)
+        return path.total_latency_us if path is not None else float("inf")
+
+    def path_latency(self, a: Node, b: Node) -> float | None:
+        path = self.topology.find_node_path(a.node_id, b.node_id)
+        return path.total_latency_us if path is not None else None
+
+    def path_bandwidth(self, a: Node, b: Node) -> float | None:
+        path = self.topology.find_node_path(a.node_id, b.node_id)
+        return path.bottleneck_gbps if path is not None else None
