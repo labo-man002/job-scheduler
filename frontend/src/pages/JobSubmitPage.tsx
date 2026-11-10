@@ -52,7 +52,7 @@ export function JobSubmitPage() {
           priority,
           duration,
           min_nodes: minNodes,
-          max_nodes: maxNodes === "" ? undefined : maxNodes,
+          ...(maxNodes === "" ? {} : { max_nodes: maxNodes }),
           require_full_connectivity: requireFullConnectivity,
           ...(minBandwidth === "" ? {} : { min_bandwidth_gbps: minBandwidth }),
           ...(maxLatency === "" ? {} : { max_latency_us: maxLatency }),
