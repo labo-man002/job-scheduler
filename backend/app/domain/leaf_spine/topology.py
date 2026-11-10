@@ -339,10 +339,24 @@ class LeafSpineTopology(PlacementTopology):
                     )
         return None
 
-    def find_node_path(self, source_node_id: int, target_node_id: int) -> NetworkPath | None:
-        """Find the deterministic shortest operational path between compute Nodes."""
+    def find_node_path(
+        self, source_node_id: int, target_node_id: int, *,
+        min_link_capacity_gbps: float | None = None,
+        max_total_latency_us: float | None = None,
+    ) -> NetworkPath | None:
+        """Find a deterministic operational path satisfying optional limits."""
         self.get_node(source_node_id)
         self.get_node(target_node_id)
+        for value, name, allow_zero in (
+            (min_link_capacity_gbps, "min_link_capacity_gbps", False),
+            (max_total_latency_us, "max_total_latency_us", True),
+        ):
+            if value is not None and (
+                not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not isfinite(value) or (value < 0 if allow_zero else value <= 0)
+            ):
+                qualifier = "nonnegative" if allow_zero else "positive"
+                raise ValueError(f"{name} must be {qualifier} and finite")
         if source_node_id == target_node_id:
             return NetworkPath((DeviceRef(DeviceKind.NODE, str(source_node_id)),), (), 0.0, float("inf"))
         source = DeviceRef(DeviceKind.NODE, str(source_node_id))
@@ -362,10 +376,15 @@ class LeafSpineTopology(PlacementTopology):
                 link = self._links[link_id]
                 if not self._operational(link):
                     continue
+                if min_link_capacity_gbps is not None and link.capacity_gbps < min_link_capacity_gbps:
+                    continue
                 other = link.b.device if link.a.device == current else link.a.device
                 if other.kind == DeviceKind.NODE and other != target:
                     continue
-                key = (latency + link.latency_us, hops + 1, (*links, link.id))
+                new_latency = latency + link.latency_us
+                if max_total_latency_us is not None and new_latency > max_total_latency_us:
+                    continue
+                key = (new_latency, hops + 1, (*links, link.id))
                 if key < best.get(other, (float("inf"), float("inf"), ())):
                     best[other] = key
                     heappush(heap, (*key, next(sequence), other, (*devices, other), min(bottleneck, link.capacity_gbps)))
@@ -430,3 +449,15 @@ class LeafSpineTopologyView(PlacementTopologyView):
     def path_bandwidth(self, a: Node, b: Node) -> float | None:
         path = self.topology.find_node_path(a.node_id, b.node_id)
         return path.bottleneck_gbps if path is not None else None
+
+    def path_metrics(
+        self, a: Node, b: Node, *,
+        min_bandwidth_gbps: float | None = None,
+        max_latency_us: float | None = None,
+    ) -> tuple[float, float] | None:
+        path = self.topology.find_node_path(
+            a.node_id, b.node_id,
+            min_link_capacity_gbps=min_bandwidth_gbps,
+            max_total_latency_us=max_latency_us,
+        )
+        return (path.total_latency_us, path.bottleneck_gbps) if path is not None else None
