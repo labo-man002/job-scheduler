@@ -295,9 +295,20 @@ class Server:
         job = self._get_job_or_raise(job_id)
         return sorted(job.events, key=lambda event: event.id)
 
-    def submit_job(self, client_id, requirements, priority, duration):
+    def submit_job(
+        self, client_id, requirements, priority, duration, *, min_nodes=1, max_nodes=None,
+        require_full_connectivity=False, min_bandwidth_gbps=None, max_latency_us=None,
+    ):
         """requirements: list of (ResourceType, amount). `duration` is the
         client's estimate, not a commitment."""
+        if type(min_nodes) is not int or min_nodes < 1:
+            raise ValueError("min_nodes must be a positive integer")
+        if max_nodes is not None and (type(max_nodes) is not int or max_nodes < min_nodes):
+            raise ValueError("max_nodes must be greater than or equal to min_nodes")
+        if min_bandwidth_gbps is not None and min_bandwidth_gbps <= 0:
+            raise ValueError("min_bandwidth_gbps must be positive")
+        if max_latency_us is not None and max_latency_us < 0:
+            raise ValueError("max_latency_us must be nonnegative")
         resource_types = [resource_type for resource_type, _ in requirements]
         if len(resource_types) != len(set(resource_types)):
             # Placer.place() keys its "needed" dict by resource_type (app/domain/placer.py) --
@@ -316,7 +327,12 @@ class Server:
         # enqueued a second time below.
         scheduler = self._get_scheduler(cluster.cluster_id)
 
-        job = models.Job(client_id=client_id, priority=priority, duration=duration, status=JobStatus.QUEUED)
+        job = models.Job(
+            client_id=client_id, priority=priority, duration=duration, status=JobStatus.QUEUED,
+            min_nodes=min_nodes, max_nodes=max_nodes,
+            require_full_connectivity=require_full_connectivity,
+            min_bandwidth_gbps=min_bandwidth_gbps, max_latency_us=max_latency_us,
+        )
         self.db.add(job)
         self.db.flush()
         for resource_type, amount in requirements:
@@ -474,7 +490,11 @@ class Server:
             models.ResourceNode.node_id.in_(node_ids)
         ).with_for_update().all()
 
-        return Placer(nodes, self.place_algorithm, Topology(cluster))
+        if cluster.topology_type == TopologyType.LEAF_SPINE:
+            topology = self._build_leaf_spine_topology(cluster, nodes)
+        else:
+            topology = Topology(cluster)
+        return Placer(nodes, self.place_algorithm, topology)
 
     def _reserved_node_ids(self, cluster_id, exclude_institute_id):
         """Nodes reserved by a DIFFERENT institute, right now. Placer itself
