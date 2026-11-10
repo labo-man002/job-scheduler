@@ -55,7 +55,7 @@ The [canonical glossary](glossary.md) defines the terms used here and distinguis
 - **Eliminate `GpuServer`; use the existing `Node` as the network endpoint.** A physical compute server already has one canonical identity in the application: `Node`. The leaf-spine topology registers that same ORM Node directly and connects its `nic0` endpoint to a LEAF switch. It must not introduce a wrapper ID or a second representation of the host.
 - **Move NIC attributes to `Node`.** `nic_capacity_gbps` (nullable until a NIC is configured) and `nic_state` (shared `OperationalState`, default `UP`) belong to Node. Existing `Node.status` remains the host-level state; `NodeStatus.DOWN` makes its network path unusable. The topology reads these values but does not own their persistence or mutate the ORM object.
 - **GPU inventory remains on `ResourceNode`.** The former `GpuServer` never owned GPU units. Free GPU IDs/counts continue to be derived from `Node.free_resources(ResourceType.GPU)`; no duplicate GPU attribute or inventory counter is added to Node or the fabric.
-- **Use Node identity throughout the fabric API.** Device references use `DeviceKind.NODE` plus the string form of `node_id`; links from a Node to a leaf use `LinkKind.NODE_LEAF`; path and candidate results identify `node_id` directly. The read-only candidate finder receives the same session-loaded Node instances registered in the topology.
+- **Use Node identity throughout the fabric API.** Device references use `DeviceKind.NODE` plus the string form of `node_id`; links from a Node to a leaf use `LinkKind.NODE_LEAF`; path results identify `node_id` directly. Candidate discovery reads the existing Node and ResourceNode inventory only inside `Placer`.
 
 
 ## Unified topology-aware placement decisions (2026-11-10)
@@ -79,10 +79,10 @@ placement behavior implemented on `feat/unified-topology-aware-placement`.
   Node NIC capacity and state remain on the canonical `Node` row. The
   transaction-local topology is rebuilt by `Server._build_placer()`; runtime
   graph objects are not ORM entities.
-- **One placement orchestrator.** `Placer` performs generic resource
-  candidate discovery for CPU, GPU, and mixed jobs. The old
-  `GpuCandidateFinder` is retained only as a read-only root-switch diagnostic;
-  it is not a separate allocation or placement workflow.
+- **One placement orchestrator.** `Placer` is the sole owner of candidate
+  discovery and placement for CPU, GPU, and mixed jobs. The Leaf–Spine domain
+  owns network connectivity and path metrics only. No separate GPU candidate
+  finder or GPU-specific placement workflow exists.
 - **Node-count constraints.** Jobs default to `min_nodes=1` and
   `max_nodes=None`. A single-node job sets both to 1; a multi-node job that
   requires multiple hosts sets `min_nodes >= 2`; an exact two-node job sets
