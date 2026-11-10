@@ -82,7 +82,14 @@ describe("JobSubmitPage", () => {
 
     expect(await screen.findByText("job detail page")).toBeInTheDocument();
     expect(api.POST).toHaveBeenCalledWith("/jobs", {
-      body: { client_id: 1, priority: "NORMAL", duration: 60, requirements: [{ resource_type: "CPU", amount: 1 }] },
+      body: {
+        client_id: 1,
+        priority: "NORMAL",
+        duration: 60,
+        min_nodes: 1,
+        require_full_connectivity: false,
+        requirements: [{ resource_type: "CPU", amount: 1 }],
+      },
     });
   });
 });
