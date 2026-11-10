@@ -33,6 +33,7 @@ from .types import (
     UnknownLinkError,
 )
 
+
 class LeafSpineTopology(PlacementTopology):
     """The only connection mutation gateway; Node identity is shared with ORM.
 
