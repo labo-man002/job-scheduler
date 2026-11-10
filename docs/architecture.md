@@ -3,8 +3,9 @@
 This document describes the **implemented backend**, not the earlier proposed
 design in issues #25–#27. The live system uses request-scoped `Server` instances,
 process-local queues, transaction-local placement, and SQLAlchemy ORM models.
-The independent GPU leaf–spine prototype is deliberately **not** part of the
-allocation path yet.
+The Leaf–Spine fabric is reconstructed from each cluster's persisted
+configuration and exposed to the same topology-aware Placer used by grid
+clusters. This v1 models nominal link capacity, not live bandwidth reservation.
 
 For exact definitions of `Server`, physical compute `Node`, resource units, and topology terms, see the [canonical glossary](glossary.md). Open leaf-spine design choices are labeled separately there.
 
@@ -17,16 +18,19 @@ flowchart TD
     S -- "enqueue / dequeue PendingJob" --> Q["Scheduler · when?"]
     S -- "constructs from locked ORM rows" --> P["Placer · where?"]
     Q -- "attempt_placement(ORM Job)" --> P
-    P -- "build_view(eligible nodes)" --> T["Topology"]
-    T -- "returns" --> V["TopologyView"]
+    P -- "build_view(full physical inventory)" --> T["PlacementTopology"]
+    T -- "returns" --> V["PlacementTopologyView"]
     P -- "select/rank(Job, candidates, view)" --> ALG["PlaceAlgorithm · Pack / Spread"]
     ALG -. "reads view.distance" .-> V
     S -- "queries / flushes" --> DB[("PostgreSQL")]
     API -- "commits or rolls back" --> DB
 
-    subgraph FABRIC["Separate in-memory prototype · not integrated"]
-        L["LeafSpineTopology"] --> F["GpuCandidateFinder · read-only"]
+    subgraph FABRIC["Cluster topology implementations"]
+        G["Grid Topology"]
+        L["LeafSpineTopology · rebuilt from Cluster.fabric_config"]
     end
+    G --> T
+    L --> T
 ```
 
 The arrows above distinguish **method calls and data use**. In particular,
@@ -49,9 +53,10 @@ construct it. The routers, not `Server`, commit or roll back the session.
   the current transaction's row-locked `Node` and `ResourceNode` objects. It
   chooses **which exact resource units** to allocate. It neither queries nor
   commits the database.
-- **Topology / TopologyView** describe the coordinate-grid neighborhood and
-  distance snapshot used by Pack/Spread. They do not represent leaf–spine
-  networking; `FAT_TREE` remains unsupported in the live cluster path.
+- **PlacementTopology / PlacementTopologyView** provide a common read-only
+  contract (`is_reachable`, `distance`, optional path latency/bandwidth) to
+  `Placer` and Pack/Spread. Grid and Leaf–Spine implementations own their
+  different representations. `FAT_TREE` remains unsupported.
 
 ## Where vs. when
 
@@ -154,11 +159,12 @@ classDiagram
     class Placer {
         +nodes: list~Node~
         +algorithm: PlaceAlgorithm
-        +topology: Topology
+        +topology: PlacementTopology
+        +available_node_ids
+        +find_candidates(job)
         +place(job)
         +has_enough_capacity(job, nodes)
         +release_resource(resource_nodes)
-        -_reserve_from(node, needed)
     }
     class PlaceAlgorithm {
         <<abstract>>
@@ -280,18 +286,17 @@ until the [ERD audit (#92)](https://github.com/labo-man002/job-scheduler/issues/
 
 ### Why `Topology` and `TopologyView` are separate
 
-`Topology` holds the cluster's grid configuration. For each placement attempt,
-`Placer` builds a `TopologyView` over its **current eligible ORM nodes**;
-`TopologyView` indexes their coordinates and supplies distances. Pack/Spread
-can therefore score a candidate against occupied nodes (`ALLOCATED` or
-`MIXED`) that are not themselves candidates because they lack enough free
-resources. This preserves the distinction between **placement eligibility**
-and **topology context** within that view.
+`PlacementTopology` builds a view over the **full physical cluster inventory**.
+`Placer.available_node_ids` applies per-job reservation eligibility separately,
+so a reserved Node is excluded from allocation candidates but remains visible
+to path/reachability calculations and Pack/Spread scoring. This keeps physical
+connectivity and occupied-node context independent from institute-specific
+eligibility.
 
-Today, reservation-excluded nodes are absent from both the candidate set and
-the topology view. Whether their physical occupancy should still influence
-scoring is an open [design question (#91)](https://github.com/labo-man002/job-scheduler/issues/91);
-the documentation PR does not change that behavior.
+Grid views compute connectivity through coordinate neighbors. Leaf–Spine
+views use operational switch, port, NIC and link state; their `distance` is
+the shortest operational path latency. The common interface hides those
+differences from placement algorithms.
 
 ## From submission to an allocation
 
@@ -307,11 +312,13 @@ the documentation PR does not change that behavior.
    reloads the real `Job`, lazily discarding cancelled/stale queue references.
    `Server._build_placer()` locks the cluster's `Node` and `ResourceNode` rows
    with `SELECT ... FOR UPDATE` before asking for placement.
-4. For each job, `Server` excludes nodes currently reserved for **other**
-   institutes. `Placer` first tries a single eligible node and, when necessary,
-   ranks nodes for a multi-node allocation. Pack/Spread use a fresh
-   `TopologyView`; the placer marks the chosen individual resource rows
-   `ALLOCATED` in the transaction.
+4. For each job, `Server` sets eligible Node IDs without removing reserved
+   Nodes from the physical topology view. `Placer` searches exact candidate
+   groups from `min_nodes` through `max_nodes`, preferring fewer Nodes, then
+   lower pairwise topology cost, then Pack/Spread preference and Node ID.
+   When requested, every pair in a multi-node group must be reachable and
+   satisfy the job's latency/bandwidth limits. The complete resource plan is
+   selected before any `ResourceNode` is marked `ALLOCATED`.
 5. On success, `Server` creates `Allocation` plus one `AllocationNode` per
    selected `ResourceNode`, marks the job `RUNNING`, and writes its `JobEvent`.
    The FastAPI router commits the transaction. On capacity failure, the job
@@ -349,22 +356,22 @@ There is currently no usage-metering writer for `ResourceUsage`, no
 gang-scheduling or preemption layer, and no policy engine for borrowing or
 reclaiming quota. Those are potential future extensions, not live components.
 
-## Independent GPU leaf–spine model
+## Leaf–Spine integration
 
 `backend/app/domain/leaf_spine/` implements immutable switch/port snapshots,
-canonical physical links, operational-state changes, constrained path
-discovery, and `GpuCandidateFinder`. The existing ORM `Node` is the direct
-compute/network endpoint; its optional `nic_capacity_gbps` and `nic_state`
-fields describe `nic0`, while its `ResourceNode` relationships remain the
-sole GPU inventory. The finder receives the same session-loaded ORM Nodes
-registered with the fabric and only **reads** `ResourceType.GPU` availability
-and network paths.
+canonical physical links, operational-state changes and constrained path
+discovery. `Cluster.fabric_config` persists switch and link inventory as
+JSONB; `Server._build_placer()` rebuilds a transaction-local
+`LeafSpineTopology` using the same locked ORM `Node` objects used for resource
+allocation. Cluster creation validates the complete fabric before commit.
+`TopologyType.LEAF_SPINE` is explicit and does not reinterpret `FAT_TREE`.
 
-Crucially, neither `Server._build_placer()` nor `Placer.place()` instantiates
-`LeafSpineTopology` or calls `GpuCandidateFinder`. There is no persistence for
-fabric devices or links, bandwidth reservation, contention model, NVLink/
-NVSwitch entity, or NVSwitch-aware GPU placement. The separate model and its
-own detailed class diagram live in [GPU leaf–spine design](gpu-leaf-spine.md).
+`Placer.find_candidates()` performs generic candidate discovery for CPU, GPU
+or mixed requirements. It evaluates complete groups and changes resource
+state only after a feasible group is selected. The older `GpuCandidateFinder`
+remains a read-only root-switch diagnostic utility, not a second placement
+workflow. Bandwidth is **nominal**: path bandwidth is the minimum configured
+link capacity, with no residual-bandwidth tracking or reservation in v1.
 
 ## Code map
 
