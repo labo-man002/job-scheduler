@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -174,8 +175,40 @@ class ResourceCountIn(OurBaseModel):
 
 
 class ClusterNodeSpec(OurBaseModel):
-    coordinates: list[int]
+    coordinates: list[int] = Field(default_factory=list)
+    nic_capacity_gbps: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     resources: list[ResourceCountIn] = Field(min_length=1)
+
+
+class LeafSpinePortGroupIn(OurBaseModel):
+    count: int = Field(gt=0)
+    speed_gbps: float = Field(gt=0, allow_inf_nan=False)
+
+
+class LeafSpineSwitchIn(OurBaseModel):
+    switch_id: str = Field(min_length=1)
+    role: Literal["LEAF", "SPINE"]
+    model: str = Field(min_length=1)
+    port_groups: list[LeafSpinePortGroupIn] = Field(min_length=1)
+
+
+class LeafSpineEndpointIn(OurBaseModel):
+    device_kind: Literal["SWITCH", "NODE"]
+    device_id: str = Field(min_length=1)
+    endpoint_id: str = Field(min_length=1)
+
+
+class LeafSpineLinkIn(OurBaseModel):
+    link_id: str | None = None
+    a: LeafSpineEndpointIn
+    b: LeafSpineEndpointIn
+    capacity_gbps: float = Field(gt=0, allow_inf_nan=False)
+    latency_us: float = Field(ge=0, allow_inf_nan=False)
+
+
+class LeafSpineFabricIn(OurBaseModel):
+    switches: list[LeafSpineSwitchIn] = Field(min_length=1)
+    links: list[LeafSpineLinkIn] = Field(default_factory=list)
 
 
 class ClusterCreate(OurBaseModel):
@@ -183,7 +216,21 @@ class ClusterCreate(OurBaseModel):
     topology_type: TopologyType
     dimension: list[int] = Field(default_factory=list)
     wrap: bool = False
+    fabric: LeafSpineFabricIn | None = None
     nodes: list[ClusterNodeSpec] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_topology_config(self):
+        if self.topology_type == TopologyType.LEAF_SPINE:
+            if self.dimension or self.wrap:
+                raise ValueError("LEAF_SPINE does not use grid dimensions or wrap")
+            if self.fabric is None:
+                raise ValueError("LEAF_SPINE requires a fabric configuration")
+            if any(node.nic_capacity_gbps is None for node in self.nodes):
+                raise ValueError("every LEAF_SPINE compute Node requires nic_capacity_gbps")
+        elif self.fabric is not None:
+            raise ValueError("fabric configuration is only valid for LEAF_SPINE clusters")
+        return self
 
 
 class NodeResourceOut(OurBaseModel):
