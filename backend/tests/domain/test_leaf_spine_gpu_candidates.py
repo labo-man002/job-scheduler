@@ -187,3 +187,59 @@ def test_persisted_leaf_spine_config_rebuilds_runtime_topology():
     assert view.is_reachable(first, second)
     assert view.distance(first, second) == 2
     assert view.path_bandwidth(first, second) == 100
+
+
+
+def test_node_path_search_finds_longer_route_that_meets_minimum_bandwidth():
+    first = make_node(70, [0], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    second = make_node(71, [1], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    topology = LeafSpineTopology()
+    hardware = SwitchHardwareConfig("test", (PortGroupConfig(3, 200),))
+    for switch_id, role in (
+        ("leaf-a", SwitchRole.LEAF),
+        ("leaf-b", SwitchRole.LEAF),
+        ("spine-low", SwitchRole.SPINE),
+        ("spine-high", SwitchRole.SPINE),
+    ):
+        topology.add_switch(Switch(switch_id, role, hardware))
+    topology.add_node(first)
+    topology.add_node(second)
+
+    topology.add_link(
+        EndpointRef(DeviceKind.NODE, "70", "nic0"),
+        EndpointRef(DeviceKind.SWITCH, "leaf-a", "p1"),
+        capacity_gbps=100, latency_us=1,
+    )
+    topology.add_link(
+        EndpointRef(DeviceKind.SWITCH, "leaf-a", "p2"),
+        EndpointRef(DeviceKind.SWITCH, "spine-low", "p1"),
+        capacity_gbps=50, latency_us=1,
+    )
+    topology.add_link(
+        EndpointRef(DeviceKind.SWITCH, "spine-low", "p2"),
+        EndpointRef(DeviceKind.SWITCH, "leaf-b", "p2"),
+        capacity_gbps=50, latency_us=1,
+    )
+    topology.add_link(
+        EndpointRef(DeviceKind.SWITCH, "leaf-b", "p1"),
+        EndpointRef(DeviceKind.NODE, "71", "nic0"),
+        capacity_gbps=100, latency_us=1,
+    )
+    topology.add_link(
+        EndpointRef(DeviceKind.SWITCH, "leaf-a", "p3"),
+        EndpointRef(DeviceKind.SWITCH, "spine-high", "p1"),
+        capacity_gbps=100, latency_us=2,
+    )
+    topology.add_link(
+        EndpointRef(DeviceKind.SWITCH, "spine-high", "p2"),
+        EndpointRef(DeviceKind.SWITCH, "leaf-b", "p3"),
+        capacity_gbps=100, latency_us=2,
+    )
+
+    shortest = topology.find_node_path(70, 71)
+    qualified = topology.find_node_path(70, 71, min_link_capacity_gbps=80)
+
+    assert shortest.total_latency_us == 4
+    assert shortest.bottleneck_gbps == 50
+    assert qualified.total_latency_us == 6
+    assert qualified.bottleneck_gbps == 100
