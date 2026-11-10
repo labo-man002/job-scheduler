@@ -116,7 +116,7 @@ class Placer:
                     continue
                 if not self._satisfies_network_constraints(job, group, view):
                     continue
-                locality = sum(view.distance(a, b) for a, b in combinations(group, 2))
+                locality = self._group_locality(job, group, view)
                 policy_tie = sum(rank_index[node.node_id] for node in group)
                 ids = tuple(sorted(node.node_id for node in group))
                 feasible.append(((locality, policy_tie, ids), group))
@@ -143,6 +143,18 @@ class Placer:
             if not necessary:
                 return False
         return True
+
+    def _group_locality(self, job: Job, group: tuple[Node, ...], view) -> float:
+        min_bandwidth = getattr(job, "min_bandwidth_gbps", None)
+        max_latency = getattr(job, "max_latency_us", None)
+        if min_bandwidth is None and max_latency is None:
+            return sum(view.distance(a, b) for a, b in combinations(group, 2))
+        return sum(
+            view.path_metrics(
+                a, b, min_bandwidth_gbps=min_bandwidth, max_latency_us=max_latency
+            )[0]
+            for a, b in combinations(group, 2)
+        )
 
     def _satisfies_network_constraints(self, job: Job, group: tuple[Node, ...], view) -> bool:
         # Jobs without explicit network requirements remain topology-agnostic.
