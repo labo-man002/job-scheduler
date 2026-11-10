@@ -10,7 +10,7 @@ from app.domain.leaf_spine import (
 from app.domain.place_algorithm import PackAlgorithm, SpreadAlgorithm
 from app.domain.placer import Placer
 from app.domain.topology import Topology
-from app.enums import NodeStatus, ResourceStatus
+from app.enums import NodeStatus, ResourceStatus, ResourceType
 from tests.factories import make_cluster, make_job, make_node
 
 
@@ -130,3 +130,78 @@ def test_placer_uses_leaf_spine_topology_through_common_contract():
 
     assert reserved is not None
     assert reserved[0].node is nodes[0]
+
+
+
+def _leaf_fabric(nodes, capacities=None, latencies=None):
+    topology = LeafSpineTopology()
+    topology.add_switch(
+        Switch("leaf", SwitchRole.LEAF, SwitchHardwareConfig("test", (PortGroupConfig(len(nodes), 200),)))
+    )
+    capacities = capacities or [100] * len(nodes)
+    latencies = latencies or [1] * len(nodes)
+    for node in nodes:
+        topology.add_node(node)
+    for index, node in enumerate(nodes):
+        topology.add_link(
+            EndpointRef(DeviceKind.SWITCH, "leaf", f"p{index + 1}"),
+            EndpointRef(DeviceKind.NODE, str(node.node_id), "nic0"),
+            capacity_gbps=capacities[index],
+            latency_us=latencies[index],
+        )
+    return topology
+
+
+def test_min_max_nodes_force_a_multi_node_allocation():
+    nodes = [make_node(80, [0], 2), make_node(81, [1], 2)]
+    job = make_job(80, amount=3)
+    job.min_nodes = 2
+    job.max_nodes = 2
+    placer = Placer(nodes, PackAlgorithm(), Topology(make_cluster(1, [2], False)))
+
+    reserved = placer.place(job)
+
+    assert reserved is not None
+    assert {resource.node.node_id for resource in reserved} == {80, 81}
+    assert len(reserved) == 3
+
+
+def test_full_connectivity_rejects_disconnected_group_without_partial_reservation():
+    nodes = [
+        make_node(90, [0], 2, nic_capacity_gbps=100),
+        make_node(91, [1], 2, nic_capacity_gbps=100),
+    ]
+    topology = LeafSpineTopology()
+    topology.add_node(nodes[0])
+    topology.add_node(nodes[1])
+    job = make_job(90, amount=3)
+    job.min_nodes = 2
+    job.max_nodes = 2
+    job.require_full_connectivity = True
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    assert placer.place(job) is None
+    assert all(resource.resource_status == ResourceStatus.AVAILABLE for node in nodes for resource in node.resources)
+
+
+def test_bandwidth_and_latency_constraints_apply_to_pairwise_paths():
+    nodes = [
+        make_node(100, [0], 2, nic_capacity_gbps=100),
+        make_node(101, [1], 2, nic_capacity_gbps=100),
+    ]
+    topology = _leaf_fabric(nodes, capacities=[100, 50], latencies=[1, 2])
+    job = make_job(100, amount=3)
+    job.min_nodes = 2
+    job.max_nodes = 2
+    job.min_bandwidth_gbps = 60
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    assert placer.place(job) is None
+    assert all(resource.resource_status == ResourceStatus.AVAILABLE for node in nodes for resource in node.resources)
+
+    job.min_bandwidth_gbps = 40
+    job.max_latency_us = 2
+    assert placer.place(job) is None  # node-to-node path latency is 3 microseconds
+
+    job.max_latency_us = 3
+    assert len(placer.place(job)) == 3
