@@ -604,7 +604,17 @@ class Server:
 
             reserved = scheduler.attempt_placement(job)
             if not reserved:
-                if excluded and placer.has_enough_capacity(job, all_nodes):
+                if excluded:
+                    # Re-check exact group constraints against the full cluster
+                    # without mutating resource state. Only a job that becomes
+                    # feasible when reservations are ignored is skipped.
+                    eligible_ids = placer.available_node_ids
+                    placer.available_node_ids = {node.node_id for node in all_nodes}
+                    feasible_without_reservations = placer.can_place(job)
+                    placer.available_node_ids = eligible_ids
+                else:
+                    feasible_without_reservations = False
+                if feasible_without_reservations:
                     # It only failed because reservation exclusion narrowed its
                     # own institute's view of the cluster -- not because the
                     # cluster is actually full. That's not the resource
