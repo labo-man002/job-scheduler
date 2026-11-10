@@ -73,7 +73,7 @@ class Placer:
         for size in range(min_nodes, upper + 1):
             feasible = []
             for group in combinations(ranked, size):
-                if not self._has_capacity(job, group):
+                if not self._has_capacity(job, group) or not self._every_node_contributes(job, group):
                     continue
                 if not self._satisfies_network_constraints(job, group, view):
                     continue
@@ -115,6 +115,20 @@ class Placer:
     def _has_capacity(self, job: Job, group: tuple[Node, ...] | list[Node]) -> bool:
         for req in job.requirements:
             if sum(len(node.free_resources(req.resource_type)) for node in group) < req.amount:
+                return False
+        return True
+
+    def _every_node_contributes(self, job: Job, group: tuple[Node, ...]) -> bool:
+        """A min_nodes constraint means every selected Node must carry resources."""
+        for node in group:
+            necessary = False
+            for req in job.requirements:
+                total = sum(len(other.free_resources(req.resource_type)) for other in group)
+                without_node = total - len(node.free_resources(req.resource_type))
+                if total >= req.amount and without_node < req.amount:
+                    necessary = True
+                    break
+            if not necessary:
                 return False
         return True
 
