@@ -136,3 +136,13 @@ def test_leaf_spine_placement_view_rejects_unreachable_nodes():
     assert view.distance(first, second) == float("inf")
     assert view.path_latency(first, second) is None
     assert view.path_bandwidth(first, second) is None
+
+
+
+def test_leaf_spine_placement_view_accepts_reserved_node_subset():
+    first = make_node(50, [0], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    second = make_node(51, [1], 1, ResourceType.GPU, nic_capacity_gbps=100)
+    topo = fabric([first, second])
+
+    view = topo.build_view([first])
+    assert view.nodes == [first]
