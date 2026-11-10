@@ -44,8 +44,14 @@ from app.domain.exceptions import (
     ReservationNotFoundError,
 )
 from app.domain.leaf_spine import (
-    DeviceKind, EndpointRef, LeafSpineTopology, OperationalState, PortGroupConfig,
-    Switch, SwitchHardwareConfig, SwitchRole,
+    DeviceKind,
+    EndpointRef,
+    LeafSpineTopology,
+    OperationalState,
+    PortGroupConfig,
+    Switch,
+    SwitchHardwareConfig,
+    SwitchRole,
 )
 from app.domain.place_algorithm import PackAlgorithm
 from app.domain.placer import Placer
