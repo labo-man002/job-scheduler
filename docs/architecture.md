@@ -394,10 +394,11 @@ allocation. Cluster creation validates the complete fabric before commit.
 
 `Placer.find_candidates()` performs generic candidate discovery for CPU, GPU
 or mixed requirements. It evaluates complete groups and changes resource
-state only after a feasible group is selected. The older `GpuCandidateFinder`
-remains a read-only root-switch diagnostic utility, not a second placement
-workflow. Bandwidth is **nominal**: path bandwidth is the minimum configured
-link capacity, with no residual-bandwidth tracking or reservation in v1.
+state only after a feasible group is selected. `LeafSpineTopology` supplies
+network paths and metrics through the common topology contract; it does not
+discover resource candidates or perform placement. Bandwidth is **nominal**:
+path bandwidth is the minimum configured link capacity, with no
+residual-bandwidth tracking or reservation in v1.
 
 ## Code map
 
