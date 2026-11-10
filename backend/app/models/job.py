@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, func
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, func
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -17,6 +17,11 @@ class Job(Base):
         Enum(Priority, name="priority"), nullable=False, default=Priority.NORMAL
     )
     duration = Column(Integer, nullable=False)
+    min_nodes = Column(Integer, nullable=False, default=1)
+    max_nodes = Column(Integer, nullable=True)
+    require_full_connectivity = Column(Boolean, nullable=False, default=False)
+    min_bandwidth_gbps = Column(Float, nullable=True)
+    max_latency_us = Column(Float, nullable=True)
     client_id = Column(Integer, ForeignKey("client.client_id"), nullable=False)
     submitted_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
