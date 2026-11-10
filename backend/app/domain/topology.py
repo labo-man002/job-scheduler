@@ -63,8 +63,12 @@ class TopologyView(PlacementTopologyView):
 
     def __init__(self, cluster: Cluster, nodes: list[Node]):
         self.cluster = cluster
-        self.nodes = nodes
+        self._nodes = nodes
         self._by_coordinates = {tuple(n.coordinates): n for n in nodes}
+
+    @property
+    def nodes(self) -> list[Node]:
+        return self._nodes
 
     def neighbors(self, node: Node) -> list[Node]:
         self._require_grid()
