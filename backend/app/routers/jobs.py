@@ -29,9 +29,6 @@ def get_job(job_id: int, db: DbDep):
 
     return schemas.JobDetailOut(
         job_id=job.job_id,
-        require_full_connectivity=job.require_full_connectivity,
-        min_bandwidth_gbps=job.min_bandwidth_gbps,
-        max_latency_us=job.max_latency_us,
         client_id=job.client_id,
         status=job.status,
         priority=job.priority,
@@ -62,9 +59,6 @@ def submit_job(payload: schemas.JobCreate, db: DbDep):
             requirements=[(r.resource_type, r.amount) for r in payload.requirements],
             priority=payload.priority,
             duration=payload.duration,
-            require_full_connectivity=payload.require_full_connectivity,
-            min_bandwidth_gbps=payload.min_bandwidth_gbps,
-            max_latency_us=payload.max_latency_us,
         )
         db.commit()
     except ClientNotFoundError as error:
