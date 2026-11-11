@@ -25,7 +25,6 @@ Node/ResourceNode objects.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from math import isfinite
 from typing import ClassVar
 
 from app import models
@@ -328,22 +327,9 @@ class Server:
         job = self._get_job_or_raise(job_id)
         return sorted(job.events, key=lambda event: event.id)
 
-    def submit_job(
-        self, client_id, requirements, priority, duration, *,
-        require_full_connectivity=False, min_bandwidth_gbps=None, max_latency_us=None,
-    ):
+    def submit_job(self, client_id, requirements, priority, duration):
         """requirements: list of (ResourceType, amount). `duration` is the
         client's estimate, not a commitment."""
-        if min_bandwidth_gbps is not None and (
-            not isinstance(min_bandwidth_gbps, (int, float)) or isinstance(min_bandwidth_gbps, bool)
-            or not isfinite(min_bandwidth_gbps) or min_bandwidth_gbps <= 0
-        ):
-            raise ValueError("min_bandwidth_gbps must be positive and finite")
-        if max_latency_us is not None and (
-            not isinstance(max_latency_us, (int, float)) or isinstance(max_latency_us, bool)
-            or not isfinite(max_latency_us) or max_latency_us < 0
-        ):
-            raise ValueError("max_latency_us must be nonnegative and finite")
         resource_types = [resource_type for resource_type, _ in requirements]
         if len(resource_types) != len(set(resource_types)):
             # Placer.place() keys its "needed" dict by resource_type (app/domain/placer.py) --
@@ -364,8 +350,6 @@ class Server:
 
         job = models.Job(
             client_id=client_id, priority=priority, duration=duration, status=JobStatus.QUEUED,
-            require_full_connectivity=require_full_connectivity,
-            min_bandwidth_gbps=min_bandwidth_gbps, max_latency_us=max_latency_us,
         )
         self.db.add(job)
         self.db.flush()
