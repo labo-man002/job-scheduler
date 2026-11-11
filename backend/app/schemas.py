@@ -41,6 +41,8 @@ class ResourceRequirementIn(OurBaseModel):
 
 
 class JobCreate(OurBaseModel):
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
     client_id: int
     priority: Priority = Priority.NORMAL
     duration: int = Field(gt=0)
