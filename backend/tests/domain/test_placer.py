@@ -173,7 +173,6 @@ def test_network_locality_can_prefer_more_nodes_than_the_minimum_feasible_group(
     ]
     topology = _leaf_fabric(nodes, latencies=[1, 10, 1, 1])
     job = make_job(120, resource_type=ResourceType.GPU, amount=4)
-    job.require_full_connectivity = True
     placer = Placer(nodes, PackAlgorithm(), topology)
 
     reserved = placer.place(job)
@@ -185,7 +184,7 @@ def test_network_locality_can_prefer_more_nodes_than_the_minimum_feasible_group(
     assert {resource.node.node_id for resource in reserved} == {120, 122, 123}
 
 
-def test_full_connectivity_rejects_disconnected_group_without_partial_reservation():
+def test_placer_always_rejects_disconnected_group_without_partial_reservation():
     nodes = [
         make_node(90, [0], 2, nic_capacity_gbps=100),
         make_node(91, [1], 2, nic_capacity_gbps=100),
@@ -201,25 +200,21 @@ def test_full_connectivity_rejects_disconnected_group_without_partial_reservatio
     assert all(resource.resource_status == ResourceStatus.AVAILABLE for node in nodes for resource in node.resources)
 
 
-def test_bandwidth_and_latency_constraints_apply_to_pairwise_paths():
+def test_placer_uses_path_latency_for_locality_without_job_thresholds():
     nodes = [
         make_node(100, [0], 2, nic_capacity_gbps=100),
         make_node(101, [1], 2, nic_capacity_gbps=100),
     ]
     topology = _leaf_fabric(nodes, capacities=[100, 50], latencies=[1, 2])
     job = make_job(100, amount=3)
-    job.min_bandwidth_gbps = 60
     placer = Placer(nodes, PackAlgorithm(), topology)
 
-    assert placer.place(job) is None
-    assert all(resource.resource_status == ResourceStatus.AVAILABLE for node in nodes for resource in node.resources)
+    reserved = placer.place(job)
 
-    job.min_bandwidth_gbps = 40
-    job.max_latency_us = 2
-    assert placer.place(job) is None  # node-to-node path latency is 3 microseconds
-
-    job.max_latency_us = 3
-    assert len(placer.place(job)) == 3
+    # No per-Job bandwidth/latency thresholds exist. A reachable path is
+    # sufficient; its latency is used only to rank candidate groups.
+    assert reserved is not None
+    assert len(reserved) == 3
 
 
 
