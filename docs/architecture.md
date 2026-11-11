@@ -340,12 +340,11 @@ differences from placement algorithms.
    with `SELECT ... FOR UPDATE` before asking for placement.
 4. For each job, `Server` sets eligible Node IDs without removing reserved
    Nodes from the physical topology view. The job specifies resource amounts,
-   not a Node count; `Placer` searches feasible groups across all sizes. For
-   jobs with network requirements, it minimizes total pairwise topology cost
-   first, then prefers fewer Nodes, Pack/Spread preference and Node ID. For
-   jobs without network requirements, it prefers fewer Nodes first, then the
-   placement policy and Node ID. When requested, every pair in a multi-node
-   group must be reachable and satisfy the job's latency/bandwidth limits.
+   not a Node count; `Placer` searches feasible groups across all sizes. It
+   always requires pairwise reachability for multi-Node groups and minimizes
+   total pairwise topology cost first, then prefers fewer Nodes, Pack/Spread
+   preference and Node ID. Connectivity and locality are automatic placement
+   behavior, not Job configuration.
    The complete resource plan is selected before any `ResourceNode` is marked
    `ALLOCATED`.
 5. On success, `Server` creates `Allocation` plus one `AllocationNode` per
