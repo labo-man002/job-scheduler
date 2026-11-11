@@ -17,8 +17,6 @@ class Job(Base):
         Enum(Priority, name="priority"), nullable=False, default=Priority.NORMAL
     )
     duration = Column(Integer, nullable=False)
-    min_nodes = Column(Integer, nullable=False, default=1)
-    max_nodes = Column(Integer, nullable=True)
     require_full_connectivity = Column(Boolean, nullable=False, default=False)
     min_bandwidth_gbps = Column(Float, nullable=True)
     max_latency_us = Column(Float, nullable=True)

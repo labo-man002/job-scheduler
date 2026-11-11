@@ -25,7 +25,6 @@ Node/ResourceNode objects.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from itertools import combinations
 from math import isfinite
 from typing import ClassVar
 
@@ -330,15 +329,11 @@ class Server:
         return sorted(job.events, key=lambda event: event.id)
 
     def submit_job(
-        self, client_id, requirements, priority, duration, *, min_nodes=1, max_nodes=None,
+        self, client_id, requirements, priority, duration, *,
         require_full_connectivity=False, min_bandwidth_gbps=None, max_latency_us=None,
     ):
         """requirements: list of (ResourceType, amount). `duration` is the
         client's estimate, not a commitment."""
-        if type(min_nodes) is not int or min_nodes < 1:
-            raise ValueError("min_nodes must be a positive integer")
-        if max_nodes is not None and (type(max_nodes) is not int or max_nodes < min_nodes):
-            raise ValueError("max_nodes must be greater than or equal to min_nodes")
         if min_bandwidth_gbps is not None and (
             not isinstance(min_bandwidth_gbps, (int, float)) or isinstance(min_bandwidth_gbps, bool)
             or not isfinite(min_bandwidth_gbps) or min_bandwidth_gbps <= 0
@@ -361,9 +356,7 @@ class Server:
         self._check_quota(client.institute_id, requirements)
 
         job_size = sum(amount for _, amount in requirements)
-        cluster = self._best_fit_cluster(
-            job_size, min_nodes=min_nodes, max_nodes=max_nodes, requirements=requirements
-        )  # reject jobs that can never meet their node bound
+        cluster = self._best_fit_cluster(job_size, requirements=requirements)
         # Fetch (and, on first use, seed) the scheduler before this job exists in the
         # DB as QUEUED -- otherwise seeding would pick it up too, then it gets
         # enqueued a second time below.
@@ -371,7 +364,6 @@ class Server:
 
         job = models.Job(
             client_id=client_id, priority=priority, duration=duration, status=JobStatus.QUEUED,
-            min_nodes=min_nodes, max_nodes=max_nodes,
             require_full_connectivity=require_full_connectivity,
             min_bandwidth_gbps=min_bandwidth_gbps, max_latency_us=max_latency_us,
         )
@@ -463,7 +455,12 @@ class Server:
             .count()
         )
 
-    def _best_fit_cluster(self, job_size, min_nodes=1, max_nodes=None, requirements=None):
+    def _best_fit_cluster(self, job_size, requirements=None):
+        """Choose the smallest cluster with enough total units of every requested type.
+
+        The job does not specify a Node count. Exact Node selection belongs to
+        Placer, which evaluates current free resources and topology at runtime.
+        """
         clusters = self.db.query(models.Cluster).all()
         if not clusters:
             raise RuntimeError("No cluster configured")
@@ -473,48 +470,29 @@ class Server:
             key=lambda pair: pair[1],
         )
         for cluster, capacity in by_capacity:
-            node_count = self.db.query(models.Node).filter_by(cluster_id=cluster.cluster_id).count()
-            if capacity < job_size or node_count < min_nodes:
+            if capacity < job_size:
                 continue
-            if requirements is not None and not self._cluster_has_resource_group(
-                cluster.cluster_id, requirements, min_nodes, max_nodes
+            if requirements is not None and not self._cluster_has_requirements(
+                cluster.cluster_id, requirements
             ):
                 continue
             return cluster
         logger.warning("job submission rejected: %s units requested, no cluster could ever fit it", job_size)
         raise JobTooLargeError(job_size)
 
-    def _cluster_has_resource_group(self, cluster_id, requirements, min_nodes, max_nodes):
-        """Exact inventory-only feasibility check for resource and node bounds."""
-        nodes = self.db.query(models.Node).filter_by(cluster_id=cluster_id).all()
-        upper = min(max_nodes or len(nodes), len(nodes))
-        for size in range(min_nodes, upper + 1):
-            for group in combinations(nodes, size):
-                capacities = [
-                    {
-                        resource_type: sum(
-                            1 for resource in node.resources if resource.resource_type == resource_type
-                        )
-                        for resource_type, _ in requirements
-                    }
-                    for node in group
-                ]
-                totals = {
-                    resource_type: sum(capacity[resource_type] for capacity in capacities)
-                    for resource_type, _ in requirements
-                }
-                if any(totals[resource_type] < amount for resource_type, amount in requirements):
-                    continue
-                if any(
-                    not any(
-                        totals[resource_type] - capacity[resource_type] < amount
-                        for resource_type, amount in requirements
-                    )
-                    for capacity in capacities
-                ):
-                    continue
-                return True
-        return False
+    def _cluster_has_requirements(self, cluster_id, requirements):
+        """Check total inventory by resource type, without imposing a Node count."""
+        for resource_type, amount in requirements:
+            capacity = (
+                self.db.query(models.ResourceNode)
+                .join(models.Node)
+                .filter(models.Node.cluster_id == cluster_id)
+                .filter(models.ResourceNode.resource_type == resource_type)
+                .count()
+            )
+            if capacity < amount:
+                return False
+        return True
     def _get_scheduler(self, cluster_id):
         if cluster_id not in Server._schedulers:
             scheduler = Scheduler(placer=None, sort_strategy=self.sort_strategy)
@@ -523,8 +501,6 @@ class Server:
                 try:
                     best = self._best_fit_cluster(
                         job_size,
-                        min_nodes=job.min_nodes or 1,
-                        max_nodes=job.max_nodes,
                         requirements=[(r.resource_type, r.amount) for r in job.requirements],
                     )
                 except JobTooLargeError:

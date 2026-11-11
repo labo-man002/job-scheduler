@@ -29,8 +29,6 @@ def get_job(job_id: int, db: DbDep):
 
     return schemas.JobDetailOut(
         job_id=job.job_id,
-        min_nodes=job.min_nodes,
-        max_nodes=job.max_nodes,
         require_full_connectivity=job.require_full_connectivity,
         min_bandwidth_gbps=job.min_bandwidth_gbps,
         max_latency_us=job.max_latency_us,
@@ -64,8 +62,6 @@ def submit_job(payload: schemas.JobCreate, db: DbDep):
             requirements=[(r.resource_type, r.amount) for r in payload.requirements],
             priority=payload.priority,
             duration=payload.duration,
-            min_nodes=payload.min_nodes,
-            max_nodes=payload.max_nodes,
             require_full_connectivity=payload.require_full_connectivity,
             min_bandwidth_gbps=payload.min_bandwidth_gbps,
             max_latency_us=payload.max_latency_us,

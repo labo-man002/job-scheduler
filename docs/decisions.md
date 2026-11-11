@@ -83,17 +83,8 @@ placement behavior implemented on `feat/unified-topology-aware-placement`.
   discovery and placement for CPU, GPU, and mixed jobs. The Leaf–Spine domain
   owns network connectivity and path metrics only. No separate GPU candidate
   finder or GPU-specific placement workflow exists.
-- **Node-count constraints.** Jobs default to `min_nodes=1` and
-  `max_nodes=None`. A single-node job sets both to 1; a multi-node job that
-  requires multiple hosts sets `min_nodes >= 2`; an exact two-node job sets
-  both to 2. Every selected Node must contribute at least one requested
-  resource unit.
-- **Exact group selection.** The placer searches candidate groups by ascending
-  group size. Among feasible groups of equal size, it minimizes the sum of
-  pairwise topology distances. Pack/Spread ranking breaks locality ties, and
-  Node ID provides the final deterministic tie-break. Search is exact and may
-  be combinatorial for large candidate sets; no approximate cutoff is silently
-  applied.
+- **Users request resources, not Node counts.** A `Job` stores resource requirements and optional communication constraints; it has no `min_nodes` or `max_nodes` fields. The `Placer` chooses how many Nodes are needed from current free inventory. A job's resource request is independent of how those units are distributed.
+- **Group selection priority depends on the request.** For a job with explicit network requirements, the placer evaluates feasible groups across all sizes and minimizes total pairwise topology distance first, then prefers fewer Nodes, then Pack/Spread rank, then stable Node IDs. Without network requirements, it prefers fewer Nodes first, then Pack/Spread rank and Node ID; it does not reject a group for unrequested network constraints. The search is exact and may be combinatorial for large candidate sets; no approximate cutoff is silently applied.
 - **Communication constraints are opt-in.** Jobs without network constraints
   are not rejected for topology disconnection. If full connectivity is
   requested, every pair in a multi-node group must be reachable. A requested

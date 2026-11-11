@@ -36,8 +36,6 @@ export function JobSubmitPage() {
   const [clientId, setClientId] = useState<number | "">("");
   const [priority, setPriority] = useState<Priority>("NORMAL");
   const [duration, setDuration] = useState(60);
-  const [minNodes, setMinNodes] = useState(1);
-  const [maxNodes, setMaxNodes] = useState<number | "">("");
   const [requireFullConnectivity, setRequireFullConnectivity] = useState(false);
   const [minBandwidth, setMinBandwidth] = useState<number | "">("");
   const [maxLatency, setMaxLatency] = useState<number | "">("");
@@ -51,8 +49,6 @@ export function JobSubmitPage() {
           client_id: clientId as number,
           priority,
           duration,
-          min_nodes: minNodes,
-          ...(maxNodes === "" ? {} : { max_nodes: maxNodes }),
           require_full_connectivity: requireFullConnectivity,
           ...(minBandwidth === "" ? {} : { min_bandwidth_gbps: minBandwidth }),
           ...(maxLatency === "" ? {} : { max_latency_us: maxLatency }),
@@ -78,10 +74,6 @@ export function JobSubmitPage() {
 
     if (clientId === "") {
       setFormError("Pick a client.");
-      return;
-    }
-    if (maxNodes !== "" && maxNodes < minNodes) {
-      setFormError("Maximum nodes must be greater than or equal to minimum nodes.");
       return;
     }
     const resourceTypes = requirements.map((r) => r.resource_type);
@@ -160,16 +152,6 @@ export function JobSubmitPage() {
 
         <div className="space-y-3 rounded-md border p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Placement constraints</p>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label htmlFor="job-min-nodes" className="text-xs font-medium text-muted-foreground">Minimum nodes</label>
-              <input id="job-min-nodes" type="number" min={1} required className={INPUT_CLASS + " w-full"} value={minNodes} onChange={(e) => setMinNodes(Number(e.target.value))} />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="job-max-nodes" className="text-xs font-medium text-muted-foreground">Maximum nodes (optional)</label>
-              <input id="job-max-nodes" type="number" min={minNodes} className={INPUT_CLASS + " w-full"} placeholder="No limit" value={maxNodes} onChange={(e) => setMaxNodes(e.target.value === "" ? "" : Number(e.target.value))} />
-            </div>
-          </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={requireFullConnectivity} onChange={(e) => setRequireFullConnectivity(e.target.checked)} />
             Require every selected node to reach every other selected node

@@ -44,18 +44,10 @@ class JobCreate(OurBaseModel):
     client_id: int
     priority: Priority = Priority.NORMAL
     duration: int = Field(gt=0)
-    min_nodes: int = Field(default=1, ge=1)
-    max_nodes: int | None = Field(default=None, ge=1)
     require_full_connectivity: bool = False
     min_bandwidth_gbps: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     max_latency_us: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     requirements: list[ResourceRequirementIn] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _validate_node_range(self):
-        if self.max_nodes is not None and self.max_nodes < self.min_nodes:
-            raise ValueError("max_nodes must be greater than or equal to min_nodes")
-        return self
 
 
 class JobOut(BaseOut):
@@ -95,8 +87,6 @@ class ResourceRequirementOut(OurBaseModel):
 
 class JobDetailOut(OurBaseModel):
     job_id: int
-    min_nodes: int
-    max_nodes: int | None
     require_full_connectivity: bool
     min_bandwidth_gbps: float | None
     max_latency_us: float | None

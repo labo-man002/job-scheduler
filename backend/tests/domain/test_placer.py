@@ -152,11 +152,9 @@ def _leaf_fabric(nodes, capacities=None, latencies=None):
     return topology
 
 
-def test_min_max_nodes_force_a_multi_node_allocation():
+def test_placer_automatically_spans_nodes_when_one_node_lacks_capacity():
     nodes = [make_node(80, [0], 2), make_node(81, [1], 2)]
     job = make_job(80, amount=3)
-    job.min_nodes = 2
-    job.max_nodes = 2
     placer = Placer(nodes, PackAlgorithm(), Topology(make_cluster(1, [2], False)))
 
     reserved = placer.place(job)
@@ -164,6 +162,27 @@ def test_min_max_nodes_force_a_multi_node_allocation():
     assert reserved is not None
     assert {resource.node.node_id for resource in reserved} == {80, 81}
     assert len(reserved) == 3
+
+
+def test_network_locality_can_prefer_more_nodes_than_the_minimum_feasible_group():
+    nodes = [
+        make_node(120, [0], 2, ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(121, [1], 2, ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(122, [2], 1, ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(123, [3], 1, ResourceType.GPU, nic_capacity_gbps=100),
+    ]
+    topology = _leaf_fabric(nodes, latencies=[1, 10, 1, 1])
+    job = make_job(120, resource_type=ResourceType.GPU, amount=4)
+    job.require_full_connectivity = True
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    reserved = placer.place(job)
+
+    assert reserved is not None
+    # Node 120 + 121 can provide four GPUs, but their path costs 11.
+    # Nodes 120 + 122 + 123 provide the same four GPUs with total
+    # pairwise path cost 6, so locality wins over using fewer Nodes.
+    assert {resource.node.node_id for resource in reserved} == {120, 122, 123}
 
 
 def test_full_connectivity_rejects_disconnected_group_without_partial_reservation():
@@ -175,8 +194,6 @@ def test_full_connectivity_rejects_disconnected_group_without_partial_reservatio
     topology.add_node(nodes[0])
     topology.add_node(nodes[1])
     job = make_job(90, amount=3)
-    job.min_nodes = 2
-    job.max_nodes = 2
     job.require_full_connectivity = True
     placer = Placer(nodes, PackAlgorithm(), topology)
 
@@ -191,8 +208,6 @@ def test_bandwidth_and_latency_constraints_apply_to_pairwise_paths():
     ]
     topology = _leaf_fabric(nodes, capacities=[100, 50], latencies=[1, 2])
     job = make_job(100, amount=3)
-    job.min_nodes = 2
-    job.max_nodes = 2
     job.min_bandwidth_gbps = 60
     placer = Placer(nodes, PackAlgorithm(), topology)
 
@@ -215,8 +230,6 @@ def test_placer_discovers_and_places_gpu_resources_through_leaf_spine_topology()
     ]
     topology = _leaf_fabric(nodes)
     job = make_job(110, resource_type=ResourceType.GPU, amount=3)
-    job.min_nodes = 2
-    job.max_nodes = 2
     job.require_full_connectivity = True
     placer = Placer(nodes, PackAlgorithm(), topology)
 

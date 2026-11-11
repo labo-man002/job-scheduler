@@ -70,7 +70,7 @@ class Placer:
                 remaining[resource_type] -= len(units)
             if taken:
                 plan.append((node, taken))
-        if any(amount > 0 for amount in remaining.values()) or len(plan) != len(selected_group):
+        if any(amount > 0 for amount in remaining.values()):
             return None  # defensive: inventory changed between planning and reservation
 
         reserved = []
@@ -94,36 +94,32 @@ class Placer:
         return self._select_group(job, candidates, view) is not None
 
     def _select_group(self, job: Job, candidates: list[Node], view) -> tuple[Node, ...] | None:
-        min_nodes = getattr(job, "min_nodes", None)
-        min_nodes = 1 if min_nodes is None else min_nodes
-        max_nodes = getattr(job, "max_nodes", None)
-        if type(min_nodes) is not int or min_nodes < 1:
-            raise ValueError("min_nodes must be a positive integer")
-        if max_nodes is not None and (type(max_nodes) is not int or max_nodes < min_nodes):
-            raise ValueError("max_nodes must be greater than or equal to min_nodes")
         if not candidates or not self.has_enough_capacity(job, candidates):
             return None
 
         ranked = self.algorithm.rank(candidates, job, view)
         rank_index = {node.node_id: index for index, node in enumerate(ranked)}
-        upper = min(max_nodes or len(ranked), len(ranked))
+        has_network_requirements = (
+            getattr(job, "require_full_connectivity", False)
+            or getattr(job, "min_bandwidth_gbps", None) is not None
+            or getattr(job, "max_latency_us", None) is not None
+        )
 
-        # Exact deterministic search: smallest group first, then pairwise
-        # locality, then Pack/Spread preference, then stable Node IDs.
-        for size in range(min_nodes, upper + 1):
-            feasible = []
+        # Search every feasible group size. For communication-constrained jobs,
+        # compare network locality before Node count. Otherwise, compactness is
+        # the first objective and topology does not impose extra constraints.
+        feasible = []
+        for size in range(1, len(ranked) + 1):
             for group in self._iter_capacity_feasible_groups(ranked, size, job):
-                if not self._every_node_contributes(job, group):
-                    continue
                 if not self._satisfies_network_constraints(job, group, view):
                     continue
-                locality = self._group_locality(job, group, view)
+                locality = self._group_locality(job, group, view) if has_network_requirements else 0.0
                 policy_tie = sum(rank_index[node.node_id] for node in group)
                 ids = tuple(sorted(node.node_id for node in group))
-                feasible.append(((locality, policy_tie, ids), group))
-            if feasible:
-                return min(feasible, key=lambda item: item[0])[1]
-        return None
+                score = (locality, size, policy_tie, ids) if has_network_requirements else (size, policy_tie, ids)
+                feasible.append((score, group))
+
+        return min(feasible, key=lambda item: item[0])[1] if feasible else None
 
     def _iter_capacity_feasible_groups(self, ranked: list[Node], size: int, job: Job):
         """Yield exact-size groups; prune only branches that cannot meet resource totals."""
@@ -167,20 +163,6 @@ class Placer:
     def _has_capacity(self, job: Job, group: tuple[Node, ...] | list[Node]) -> bool:
         for req in job.requirements:
             if sum(len(node.free_resources(req.resource_type)) for node in group) < req.amount:
-                return False
-        return True
-
-    def _every_node_contributes(self, job: Job, group: tuple[Node, ...]) -> bool:
-        """A min_nodes constraint means every selected Node must carry resources."""
-        for node in group:
-            necessary = False
-            for req in job.requirements:
-                total = sum(len(other.free_resources(req.resource_type)) for other in group)
-                without_node = total - len(node.free_resources(req.resource_type))
-                if total >= req.amount and without_node < req.amount:
-                    necessary = True
-                    break
-            if not necessary:
                 return False
         return True
 

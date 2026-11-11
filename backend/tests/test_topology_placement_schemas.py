@@ -1,36 +1,21 @@
 import pytest
-from pydantic import ValidationError
-
 from app import schemas
 from app.enums import ResourceType, TopologyType
 
 
-def test_job_create_accepts_node_bounds_and_network_constraints():
+def test_job_create_accepts_resource_requirements_and_optional_network_constraints():
     payload = schemas.JobCreate(
         client_id=1,
         duration=30,
-        min_nodes=2,
-        max_nodes=4,
         require_full_connectivity=True,
         min_bandwidth_gbps=100,
         max_latency_us=25,
         requirements=[{"resource_type": ResourceType.GPU, "amount": 4}],
     )
 
-    assert payload.min_nodes == 2
-    assert payload.max_nodes == 4
     assert payload.require_full_connectivity is True
-
-
-def test_job_create_rejects_inverted_node_bounds():
-    with pytest.raises(ValidationError, match="max_nodes"):
-        schemas.JobCreate(
-            client_id=1,
-            duration=30,
-            min_nodes=3,
-            max_nodes=2,
-            requirements=[{"resource_type": ResourceType.GPU, "amount": 4}],
-        )
+    assert payload.min_bandwidth_gbps == 100
+    assert payload.max_latency_us == 25
 
 
 def test_leaf_spine_cluster_schema_requires_graph_and_nic_metadata():

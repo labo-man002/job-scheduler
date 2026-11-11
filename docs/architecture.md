@@ -339,12 +339,15 @@ differences from placement algorithms.
    `Server._build_placer()` locks the cluster's `Node` and `ResourceNode` rows
    with `SELECT ... FOR UPDATE` before asking for placement.
 4. For each job, `Server` sets eligible Node IDs without removing reserved
-   Nodes from the physical topology view. `Placer` searches exact candidate
-   groups from `min_nodes` through `max_nodes`, preferring fewer Nodes, then
-   lower pairwise topology cost, then Pack/Spread preference and Node ID.
-   When requested, every pair in a multi-node group must be reachable and
-   satisfy the job's latency/bandwidth limits. The complete resource plan is
-   selected before any `ResourceNode` is marked `ALLOCATED`.
+   Nodes from the physical topology view. The job specifies resource amounts,
+   not a Node count; `Placer` searches feasible groups across all sizes. For
+   jobs with network requirements, it minimizes total pairwise topology cost
+   first, then prefers fewer Nodes, Pack/Spread preference and Node ID. For
+   jobs without network requirements, it prefers fewer Nodes first, then the
+   placement policy and Node ID. When requested, every pair in a multi-node
+   group must be reachable and satisfy the job's latency/bandwidth limits.
+   The complete resource plan is selected before any `ResourceNode` is marked
+   `ALLOCATED`.
 5. On success, `Server` creates `Allocation` plus one `AllocationNode` per
    selected `ResourceNode`, marks the job `RUNNING`, and writes its `JobEvent`.
    The FastAPI router commits the transaction. On capacity failure, the job
