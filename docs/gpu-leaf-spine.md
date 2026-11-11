@@ -163,10 +163,10 @@ inspect GPU inventory or select compute candidates.
 
 - `Server._build_placer()` rebuilds the fabric from `Cluster.fabric_config` and
   the transaction's locked ORM Nodes. It does not persist runtime graph objects.
-- `Placer` searches complete candidate groups, preferring fewer Nodes and then
-  the sum of pairwise path latency. Network constraints are optional; when
-  requested, all pairs must be reachable and the selected path must satisfy
-  the minimum nominal bandwidth and maximum latency.
+- `Placer` searches complete candidate groups across all feasible sizes. Every
+  selected multi-Node group must be pairwise reachable, and the placer always
+  minimizes total pairwise path latency before preferring fewer Nodes. These
+  are automatic placement rules, not Job fields or user-supplied thresholds.
 - `PackAlgorithm` and `SpreadAlgorithm` remain topology-independent policies.
   They break ties after locality, and stable Node IDs break remaining ties.
 - Reservation-excluded Nodes are removed from candidate eligibility but remain
