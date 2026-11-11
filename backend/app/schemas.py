@@ -46,9 +46,6 @@ class JobCreate(OurBaseModel):
     client_id: int
     priority: Priority = Priority.NORMAL
     duration: int = Field(gt=0)
-    require_full_connectivity: bool = False
-    min_bandwidth_gbps: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    max_latency_us: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     requirements: list[ResourceRequirementIn] = Field(min_length=1)
 
 
@@ -89,9 +86,6 @@ class ResourceRequirementOut(OurBaseModel):
 
 class JobDetailOut(OurBaseModel):
     job_id: int
-    require_full_connectivity: bool
-    min_bandwidth_gbps: float | None
-    max_latency_us: float | None
     client_id: int
     status: JobStatus
     priority: Priority
