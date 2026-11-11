@@ -5,28 +5,26 @@ from app import schemas
 from app.enums import ResourceType, TopologyType
 
 
-def test_job_create_accepts_resource_requirements_and_optional_network_constraints():
+def test_job_create_accepts_resource_requirements_without_network_configuration():
     payload = schemas.JobCreate(
         client_id=1,
         duration=30,
-        require_full_connectivity=True,
-        min_bandwidth_gbps=100,
-        max_latency_us=25,
         requirements=[{"resource_type": ResourceType.GPU, "amount": 4}],
     )
 
-    assert payload.require_full_connectivity is True
-    assert payload.min_bandwidth_gbps == 100
-    assert payload.max_latency_us == 25
+    assert payload.requirements[0].amount == 4
 
 
-def test_job_create_rejects_node_count_fields():
+def test_job_create_rejects_node_count_and_network_configuration_fields():
     with pytest.raises(ValidationError):
         schemas.JobCreate(
             client_id=1,
             duration=30,
             min_nodes=2,
             max_nodes=3,
+            require_full_connectivity=True,
+            min_bandwidth_gbps=100,
+            max_latency_us=25,
             requirements=[{"resource_type": ResourceType.GPU, "amount": 4}],
         )
 
