@@ -99,24 +99,17 @@ class Placer:
 
         ranked = self.algorithm.rank(candidates, job, view)
         rank_index = {node.node_id: index for index, node in enumerate(ranked)}
-        has_network_requirements = (
-            getattr(job, "require_full_connectivity", False)
-            or getattr(job, "min_bandwidth_gbps", None) is not None
-            or getattr(job, "max_latency_us", None) is not None
-        )
-
-        # Search every feasible group size. For communication-constrained jobs,
-        # compare network locality before Node count. Otherwise, compactness is
-        # the first objective and topology does not impose extra constraints.
+        # Every multi-node allocation must be pairwise reachable. Network
+        # locality is therefore an intrinsic placement objective, not a Job option.
         feasible = []
         for size in range(1, len(ranked) + 1):
             for group in self._iter_capacity_feasible_groups(ranked, size, job):
-                if not self._satisfies_network_constraints(job, group, view):
+                if not self._is_group_reachable(group, view):
                     continue
-                locality = self._group_locality(job, group, view) if has_network_requirements else 0.0
+                locality = self._group_locality(group, view)
                 policy_tie = sum(rank_index[node.node_id] for node in group)
                 ids = tuple(sorted(node.node_id for node in group))
-                score = (locality, size, policy_tie, ids) if has_network_requirements else (size, policy_tie, ids)
+                score = (locality, size, policy_tie, ids)
                 feasible.append((score, group))
 
         return min(feasible, key=lambda item: item[0])[1] if feasible else None
@@ -166,35 +159,13 @@ class Placer:
                 return False
         return True
 
-    def _group_locality(self, job: Job, group: tuple[Node, ...], view) -> float:
-        min_bandwidth = getattr(job, "min_bandwidth_gbps", None)
-        max_latency = getattr(job, "max_latency_us", None)
-        if min_bandwidth is None and max_latency is None:
-            return sum(view.distance(a, b) for a, b in combinations(group, 2))
-        return sum(
-            view.path_metrics(
-                a, b, min_bandwidth_gbps=min_bandwidth, max_latency_us=max_latency
-            )[0]
-            for a, b in combinations(group, 2)
-        )
+    def _group_locality(self, group: tuple[Node, ...], view) -> float:
+        """Sum of pairwise topology distances for the selected Node group."""
+        return sum(view.distance(a, b) for a, b in combinations(group, 2))
 
-    def _satisfies_network_constraints(self, job: Job, group: tuple[Node, ...], view) -> bool:
-        # Jobs without explicit network requirements remain topology-agnostic.
-        min_bandwidth = getattr(job, "min_bandwidth_gbps", None)
-        max_latency = getattr(job, "max_latency_us", None)
-        require_full_connectivity = getattr(job, "require_full_connectivity", False)
-        if not (require_full_connectivity or min_bandwidth is not None or max_latency is not None):
-            return True
-        for a, b in combinations(group, 2):
-            if not view.is_reachable(a, b):
-                return False
-            if min_bandwidth is not None or max_latency is not None:
-                metrics = view.path_metrics(
-                    a, b, min_bandwidth_gbps=min_bandwidth, max_latency_us=max_latency
-                )
-                if metrics is None:
-                    return False
-        return True
+    def _is_group_reachable(self, group: tuple[Node, ...], view) -> bool:
+        """Require every selected Node pair to have an operational path."""
+        return all(view.is_reachable(a, b) for a, b in combinations(group, 2))
 
     def has_enough_capacity(self, job: Job, nodes: list[Node] | None = None) -> bool:
         """Read-only cluster-wide capacity check."""
