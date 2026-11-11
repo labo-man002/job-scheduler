@@ -83,17 +83,10 @@ placement behavior implemented on `feat/unified-topology-aware-placement`.
   discovery and placement for CPU, GPU, and mixed jobs. The Leaf–Spine domain
   owns network connectivity and path metrics only. No separate GPU candidate
   finder or GPU-specific placement workflow exists.
-- **Users request resources, not Node counts.** A `Job` stores resource requirements and optional communication constraints; it has no `min_nodes` or `max_nodes` fields. The `Placer` chooses how many Nodes are needed from current free inventory. A job's resource request is independent of how those units are distributed.
-- **Group selection priority depends on the request.** For a job with explicit network requirements, the placer evaluates feasible groups across all sizes and minimizes total pairwise topology distance first, then prefers fewer Nodes, then Pack/Spread rank, then stable Node IDs. Without network requirements, it prefers fewer Nodes first, then Pack/Spread rank and Node ID; it does not reject a group for unrequested network constraints. The search is exact and may be combinatorial for large candidate sets; no approximate cutoff is silently applied.
-- **Communication constraints are opt-in.** Jobs without network constraints
-  are not rejected for topology disconnection. If full connectivity is
-  requested, every pair in a multi-node group must be reachable. A requested
-  minimum bandwidth or maximum latency also requires every pair to have a
-  qualifying path.
-- **Path metrics.** Leaf–Spine path latency is the sum of link latencies.
-  Path bandwidth is the minimum nominal capacity along the selected path.
-  When a bandwidth or latency limit is supplied, path search must find a path
-  satisfying those limits, not merely test the unconstrained shortest path.
+- **Users request resources, not Node counts or network thresholds.** A `Job` stores resource requirements only; it has no `min_nodes`, `max_nodes`, connectivity flag, minimum-bandwidth threshold, or maximum-latency threshold. The `Placer` determines the number of Nodes and applies topology awareness automatically.
+- **Reachability is intrinsic to placement.** Every selected multi-node group must have an operational path between every pair of selected Nodes. This is not a user-configurable Job option. If no fully reachable resource-feasible group exists, placement fails without reserving any resources.
+- **Locality is always the first group-selection objective.** The placer evaluates feasible groups across all sizes and minimizes the sum of pairwise topology distances first, then prefers fewer Nodes, Pack/Spread rank, and stable Node IDs. This applies to every Job, not only communication-constrained Jobs. The search is exact and may be combinatorial for large candidate sets; no approximate cutoff is silently applied.
+- **Path metrics.** Leaf–Spine path latency is the sum of link latencies and is used as the locality distance for pairwise placement ranking. Path bandwidth remains available as physical topology information (the minimum nominal capacity along a path), but no per-Job bandwidth threshold is accepted or enforced.
 - **No v1 network reservation.** Link capacity is nominal, not residual.
   Placement does not reserve, consume, or release bandwidth; institute compute
   reservations remain a separate Node-eligibility mechanism.
