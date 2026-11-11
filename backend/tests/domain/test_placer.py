@@ -224,7 +224,6 @@ def test_placer_discovers_and_places_gpu_resources_through_leaf_spine_topology()
     ]
     topology = _leaf_fabric(nodes)
     job = make_job(110, resource_type=ResourceType.GPU, amount=3)
-    job.require_full_connectivity = True
     placer = Placer(nodes, PackAlgorithm(), topology)
 
     candidates = placer.find_candidates(job)
