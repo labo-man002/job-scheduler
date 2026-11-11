@@ -193,7 +193,6 @@ def test_placer_always_rejects_disconnected_group_without_partial_reservation():
     topology.add_node(nodes[0])
     topology.add_node(nodes[1])
     job = make_job(90, amount=3)
-    job.require_full_connectivity = True
     placer = Placer(nodes, PackAlgorithm(), topology)
 
     assert placer.place(job) is None
