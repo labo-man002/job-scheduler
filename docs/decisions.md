@@ -6,13 +6,13 @@ The [canonical glossary](glossary.md) defines the terms used here and distinguis
 
 ## Modeling decisions
 
-- **Topology is generalized beyond a fixed 3D torus.** `Node.coordinates` is a variable-length array and `Cluster` stores `topology_type`, `dimension`, and `wrap`. The live cluster-creation path supports `RING`, `MESH_2D`, `TORUS_2D`, and `TORUS_3D`; `FAT_TREE` exists as an enum value but is rejected as unsupported. This replaces the earlier single implied cluster/torus design.
+- **Topology is generalized beyond a fixed 3D torus.** `Node.coordinates` is a variable-length array and `Cluster` stores `topology_type`, `dimension`, and `wrap`. The live cluster-creation path supports `RING`, `MESH_2D`, `TORUS_2D`, `TORUS_3D`, and graph-backed `LEAF_SPINE`; `FAT_TREE` remains a separate enum value rejected as unsupported. This replaces the earlier single implied cluster/torus design.
 - **Per-unit resource tracking over capacity counters.** `node_resource` gives each physical resource unit (a CPU core, a GPU) its own row with its own `resource_status`, instead of a `used_capacity`/`total_capacity` pair per node/resource-type. This makes "which exact unit is allocated to job X" a direct lookup instead of something inferred from arithmetic, at the cost of more rows.
 - **Request and fulfillment are separate facts.** `resource_requirement` (what a job asked for) and `allocation_node` (what it actually got) are two different tables even though they reference the same `resource_type`. Collapsing them would lose the ability to audit "did the job get what it asked for."
 - **Quotas, reservations, and usage are institute-level, not per-client.** `quota`, `reservation`, and `resource_usage` all key off `institute` (the same entity `client.institute_id` references), not `client` directly. An institute gets a resource ceiling and a usage history; individual clients within it don't get separate quotas.
 - **`job_event` is an append-only log, not a state machine table.** `job.status_id` still holds current state; `job_event` exists purely to answer "what happened and when" (placement attempts, cancellations, status transitions) without needing to reconstruct history from `allocation` rows, which only reflect the current/final placement.
 - **`Scheduler` and `Placer` are split by exactly one question each** — *when* vs. *where* — so `SortStrategy` and `PlaceAlgorithm` can be swapped independently without either class needing to know how the other decides (see "Where vs. when" in [docs/architecture.md](architecture.md)).
-- **`Topology` and `TopologyView` are two objects, not one.** `PlaceAlgorithm` needs distances to occupied nodes (`NodeStatus.ALLOCATED` or `MIXED`), including nodes that fail the current job's capacity filter. `Placer` builds a disposable view over its current **reservation-eligible** ORM node set. `Server._drain_queue()` first excludes nodes reserved for other institutes, so those nodes also disappear from topology scoring today; whether this is the intended physical-occupancy semantics is tracked in [issue #91](https://github.com/labo-man002/job-scheduler/issues/91).
+- **Topology is represented by a common contract and disposable view.** `PlacementTopology` builds `PlacementTopologyView`, which exposes reachability and distance plus optional path metrics. Grid and Leaf–Spine implementations retain separate representations. The view uses the full physical cluster inventory; per-job reservation eligibility is applied separately through `Placer.available_node_ids`, so reserved Nodes remain visible to physical reachability and locality scoring.
 - **Persisted entities are enriched ORM models, not separate domain dataclasses.** `Node`, `ResourceNode`, `Cluster`, `Job` in `backend/app/models/` carry the relationships/behavior (`Node.free_resources()`, etc.) that `Placer`/`Scheduler`/`Server` operate on directly — there's no parallel plain-Python `Node` class. Only logic with no persisted identity of its own (`Topology`, `PlaceAlgorithm`, `Placer`, `Scheduler`) lives as plain domain code.
 - **No `AllocationRepository` class.** The earlier proposed diagram included one, but the implemented architecture and [current class diagram](architecture.md) correctly show `Server` querying and writing `models.Allocation`/`models.AllocationNode` directly through its SQLAlchemy session, consistent with the other persisted entities.
 - **REST, not WebSocket, for the HTTP client boundary.** Submission, cancellation, completion and inspection are request/response operations exposed by FastAPI routers; the original design's `connect()`/`disconnect()` methods do not exist. The ORM `Client` is a persisted owner record, not an active client transport.
@@ -55,4 +55,46 @@ The [canonical glossary](glossary.md) defines the terms used here and distinguis
 - **Eliminate `GpuServer`; use the existing `Node` as the network endpoint.** A physical compute server already has one canonical identity in the application: `Node`. The leaf-spine topology registers that same ORM Node directly and connects its `nic0` endpoint to a LEAF switch. It must not introduce a wrapper ID or a second representation of the host.
 - **Move NIC attributes to `Node`.** `nic_capacity_gbps` (nullable until a NIC is configured) and `nic_state` (shared `OperationalState`, default `UP`) belong to Node. Existing `Node.status` remains the host-level state; `NodeStatus.DOWN` makes its network path unusable. The topology reads these values but does not own their persistence or mutate the ORM object.
 - **GPU inventory remains on `ResourceNode`.** The former `GpuServer` never owned GPU units. Free GPU IDs/counts continue to be derived from `Node.free_resources(ResourceType.GPU)`; no duplicate GPU attribute or inventory counter is added to Node or the fabric.
-- **Use Node identity throughout the fabric API.** Device references use `DeviceKind.NODE` plus the string form of `node_id`; links from a Node to a leaf use `LinkKind.NODE_LEAF`; path and candidate results identify `node_id` directly. The read-only candidate finder receives the same session-loaded Node instances registered in the topology.
+- **Use Node identity throughout the fabric API.** Device references use `DeviceKind.NODE` plus the string form of `node_id`; links from a Node to a leaf use `LinkKind.NODE_LEAF`; path results identify `node_id` directly. Candidate discovery reads the existing Node and ResourceNode inventory only inside `Placer`.
+
+
+## Unified topology-aware placement decisions (2026-11-10)
+
+The following decisions define the Leaf–Spine integration and the generic
+placement behavior implemented on `feat/unified-topology-aware-placement`.
+
+- **One common topology contract.** `PlacementTopology` builds a
+  `PlacementTopologyView`; the view exposes reachability and distance, with
+  optional path latency and nominal bottleneck bandwidth. Grid and graph
+  implementations keep their own internal representations. `Placer` and
+  placement algorithms do not branch on topology type.
+- **Grid and graph configuration remain distinct.** Coordinate topologies
+  continue to use `dimension`, `wrap`, and Node coordinates. Leaf–Spine
+  clusters use a graph configuration and do not interpret grid dimensions or
+  wraparound.
+- **Explicit topology enum.** `LEAF_SPINE` is a separate
+  `TopologyType` value. `FAT_TREE` is not repurposed and remains unsupported.
+- **Per-cluster fabric persistence.** The complete switch and link
+  configuration is stored in `cluster.fabric_config` (PostgreSQL JSONB).
+  Node NIC capacity and state remain on the canonical `Node` row. The
+  transaction-local topology is rebuilt by `Server._build_placer()`; runtime
+  graph objects are not ORM entities.
+- **One placement orchestrator.** `Placer` is the sole owner of candidate
+  discovery and placement for CPU, GPU, and mixed jobs. The Leaf–Spine domain
+  owns network connectivity and path metrics only. No separate GPU candidate
+  finder or GPU-specific placement workflow exists.
+- **Users request resources, not Node counts or network thresholds.** A `Job` stores resource requirements only; it has no `min_nodes`, `max_nodes`, connectivity flag, minimum-bandwidth threshold, or maximum-latency threshold. The `Placer` determines the number of Nodes and applies topology awareness automatically.
+- **Reachability is intrinsic to placement.** Every selected multi-node group must have an operational path between every pair of selected Nodes. This is not a user-configurable Job option. If no fully reachable resource-feasible group exists, placement fails without reserving any resources.
+- **Locality is always the first group-selection objective.** The placer evaluates feasible groups across all sizes and minimizes the sum of pairwise topology distances first, then prefers fewer Nodes, Pack/Spread rank, and stable Node IDs. This applies to every Job, not only communication-constrained Jobs. The search is exact and may be combinatorial for large candidate sets; no approximate cutoff is silently applied.
+- **Path metrics.** Leaf–Spine path latency is the sum of link latencies and is used as the locality distance for pairwise placement ranking. Path bandwidth remains available as physical topology information (the minimum nominal capacity along a path), but no per-Job bandwidth threshold is accepted or enforced.
+- **No v1 network reservation.** Link capacity is nominal, not residual.
+  Placement does not reserve, consume, or release bandwidth; institute compute
+  reservations remain a separate Node-eligibility mechanism.
+- **Physical topology versus job eligibility.** The topology view represents
+  the full physical cluster inventory. Per-job reservation exclusions are
+  applied through eligible Node IDs, so a reserved Node does not disappear
+  from physical reachability or locality calculations.
+- **Atomic resource reservation.** Candidate search and group feasibility are
+  read-only. The placer constructs the complete resource plan first and only
+  then changes `ResourceNode.resource_status`, preventing partial allocations
+  when a group or network constraint is infeasible.

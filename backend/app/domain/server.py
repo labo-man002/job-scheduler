@@ -42,6 +42,16 @@ from app.domain.exceptions import (
     ReservationConflictError,
     ReservationNotFoundError,
 )
+from app.domain.leaf_spine import (
+    DeviceKind,
+    EndpointRef,
+    LeafSpineTopology,
+    OperationalState,
+    PortGroupConfig,
+    Switch,
+    SwitchHardwareConfig,
+    SwitchRole,
+)
 from app.domain.place_algorithm import PackAlgorithm
 from app.domain.placer import Placer
 from app.domain.scheduler import PendingJob, Scheduler
@@ -70,6 +80,8 @@ class ResourceCount:
 class NodeSpec:
     coordinates: list[int]
     resources: list[ResourceCount]
+    nic_capacity_gbps: float | None = None
+    nic_state: OperationalState = OperationalState.UP
 
 
 _TOPOLOGY_AXES = {
@@ -83,6 +95,10 @@ _TOPOLOGY_AXES = {
 
 
 def _validate_cluster_shape(topology_type, dimension, wrap):
+    if topology_type == TopologyType.LEAF_SPINE:
+        if dimension or wrap:
+            raise ValueError("LEAF_SPINE does not use grid dimensions or wrap")
+        return
     if topology_type == TopologyType.FAT_TREE:
         raise ValueError("FAT_TREE clusters aren't supported yet -- no coordinate/dimension model exists for them")
     if any(axis_size < 1 for axis_size in dimension):
@@ -126,14 +142,26 @@ class Server:
         logger.info("institute %s registered (%r)", institute.institute_id, institute_name)
         return institute
 
-    def create_cluster(self, cluster_name, topology_type, dimension, wrap, node_specs: list[NodeSpec]):
+    def create_cluster(self, cluster_name, topology_type, dimension, wrap, node_specs: list[NodeSpec], fabric_config=None):
         _validate_cluster_shape(topology_type, dimension, wrap)
+        if topology_type == TopologyType.LEAF_SPINE and not fabric_config:
+            raise ValueError("LEAF_SPINE requires a fabric configuration")
+        if topology_type == TopologyType.LEAF_SPINE and any(spec.nic_capacity_gbps is None for spec in node_specs):
+            raise ValueError("every LEAF_SPINE compute Node requires nic_capacity_gbps")
+        if topology_type != TopologyType.LEAF_SPINE and fabric_config is not None:
+            raise ValueError("fabric configuration is only valid for LEAF_SPINE clusters")
 
-        cluster = models.Cluster(cluster_name=cluster_name, topology_type=topology_type, dimension=dimension, wrap=wrap)
+        cluster = models.Cluster(
+            cluster_name=cluster_name, topology_type=topology_type, dimension=dimension,
+            wrap=wrap, fabric_config=fabric_config,
+        )
         self.db.add(cluster)
         self.db.flush()
         for spec in node_specs:
-            node = models.Node(cluster=cluster, coordinates=spec.coordinates)  # cluster set first: coordinate validation needs it
+            node = models.Node(
+                cluster=cluster, coordinates=spec.coordinates, nic_capacity_gbps=spec.nic_capacity_gbps,
+                nic_state=spec.nic_state,
+            )  # cluster set first: coordinate validation needs it
             self.db.add(node)
             self.db.flush()
             for resource_count in spec.resources:
@@ -142,6 +170,10 @@ class Server:
                         node_id=node.node_id, resource_type=resource_count.resource_type, resource_type_index=index
                     ))
         self.db.flush()
+        if topology_type == TopologyType.LEAF_SPINE:
+            # Validate the complete graph while the cluster-creation transaction
+            # is still open; invalid wiring must never be persisted.
+            self._build_leaf_spine_topology(cluster, list(cluster.nodes))
         logger.info("cluster %s created (%r, %d nodes)", cluster.cluster_id, cluster_name, len(node_specs))
         return cluster
 
@@ -310,13 +342,15 @@ class Server:
         self._check_quota(client.institute_id, requirements)
 
         job_size = sum(amount for _, amount in requirements)
-        cluster = self._best_fit_cluster(job_size)  # raises JobTooLargeError if nothing ever could fit
+        cluster = self._best_fit_cluster(job_size, requirements=requirements)
         # Fetch (and, on first use, seed) the scheduler before this job exists in the
         # DB as QUEUED -- otherwise seeding would pick it up too, then it gets
         # enqueued a second time below.
         scheduler = self._get_scheduler(cluster.cluster_id)
 
-        job = models.Job(client_id=client_id, priority=priority, duration=duration, status=JobStatus.QUEUED)
+        job = models.Job(
+            client_id=client_id, priority=priority, duration=duration, status=JobStatus.QUEUED,
+        )
         self.db.add(job)
         self.db.flush()
         for resource_type, amount in requirements:
@@ -405,7 +439,12 @@ class Server:
             .count()
         )
 
-    def _best_fit_cluster(self, job_size):
+    def _best_fit_cluster(self, job_size, requirements=None):
+        """Choose the smallest cluster with enough total units of every requested type.
+
+        The job does not specify a Node count. Exact Node selection belongs to
+        Placer, which evaluates current free resources and topology at runtime.
+        """
         clusters = self.db.query(models.Cluster).all()
         if not clusters:
             raise RuntimeError("No cluster configured")
@@ -415,18 +454,39 @@ class Server:
             key=lambda pair: pair[1],
         )
         for cluster, capacity in by_capacity:
-            if capacity >= job_size:
-                return cluster
+            if capacity < job_size:
+                continue
+            if requirements is not None and not self._cluster_has_requirements(
+                cluster.cluster_id, requirements
+            ):
+                continue
+            return cluster
         logger.warning("job submission rejected: %s units requested, no cluster could ever fit it", job_size)
         raise JobTooLargeError(job_size)
 
+    def _cluster_has_requirements(self, cluster_id, requirements):
+        """Check total inventory by resource type, without imposing a Node count."""
+        for resource_type, amount in requirements:
+            capacity = (
+                self.db.query(models.ResourceNode)
+                .join(models.Node)
+                .filter(models.Node.cluster_id == cluster_id)
+                .filter(models.ResourceNode.resource_type == resource_type)
+                .count()
+            )
+            if capacity < amount:
+                return False
+        return True
     def _get_scheduler(self, cluster_id):
         if cluster_id not in Server._schedulers:
             scheduler = Scheduler(placer=None, sort_strategy=self.sort_strategy)
             for job in self.db.query(models.Job).filter_by(status=JobStatus.QUEUED).all():
                 job_size = sum(r.amount for r in job.requirements)
                 try:
-                    best = self._best_fit_cluster(job_size)
+                    best = self._best_fit_cluster(
+                        job_size,
+                        requirements=[(r.resource_type, r.amount) for r in job.requirements],
+                    )
                 except JobTooLargeError:
                     continue  # shouldn't happen for an already-accepted job; don't crash cold-start over it
                 if best.cluster_id == cluster_id:
@@ -474,7 +534,38 @@ class Server:
             models.ResourceNode.node_id.in_(node_ids)
         ).with_for_update().all()
 
-        return Placer(nodes, self.place_algorithm, Topology(cluster))
+        if cluster.topology_type == TopologyType.LEAF_SPINE:
+            topology = self._build_leaf_spine_topology(cluster, nodes)
+        else:
+            topology = Topology(cluster)
+        return Placer(nodes, self.place_algorithm, topology)
+
+    @staticmethod
+    def _build_leaf_spine_topology(cluster, nodes):
+        config = cluster.fabric_config
+        if not isinstance(config, dict):
+            raise ValueError(f"LEAF_SPINE cluster {cluster.cluster_id} has no valid fabric configuration")
+        topology = LeafSpineTopology()
+        for item in config.get("switches", []):
+            hardware = SwitchHardwareConfig(
+                item["model"],
+                tuple(PortGroupConfig(group["count"], group["speed_gbps"]) for group in item["port_groups"]),
+            )
+            switch = Switch(item["switch_id"], SwitchRole(item["role"]), hardware, OperationalState(item.get("state", "UP")))
+            topology.add_switch(switch)
+            for port in item.get("ports", []):
+                topology.set_port_state(switch.id, port["number"], OperationalState(port["state"]))
+        for node in nodes:
+            topology.add_node(node)
+        for item in config.get("links", []):
+            link = topology.add_link(
+                EndpointRef(DeviceKind(item["a"]["device_kind"]), item["a"]["device_id"], item["a"]["endpoint_id"]),
+                EndpointRef(DeviceKind(item["b"]["device_kind"]), item["b"]["device_id"], item["b"]["endpoint_id"]),
+                capacity_gbps=item["capacity_gbps"], latency_us=item["latency_us"], link_id=item.get("link_id"),
+            )
+            if item.get("state", "UP") != "UP":
+                topology.set_link_state(link.id, OperationalState(item["state"]))
+        return topology
 
     def _reserved_node_ids(self, cluster_id, exclude_institute_id):
         """Nodes reserved by a DIFFERENT institute, right now. Placer itself
@@ -513,11 +604,21 @@ class Server:
                 scheduler.placer = placer
 
             excluded = self._reserved_node_ids(cluster_id, job.client.institute_id)
-            placer.nodes = [n for n in all_nodes if n.node_id not in excluded]
+            placer.available_node_ids = {n.node_id for n in all_nodes if n.node_id not in excluded}
 
             reserved = scheduler.attempt_placement(job)
             if not reserved:
-                if excluded and placer.has_enough_capacity(job, all_nodes):
+                if excluded:
+                    # Re-check exact group constraints against the full cluster
+                    # without mutating resource state. Only a job that becomes
+                    # feasible when reservations are ignored is skipped.
+                    eligible_ids = placer.available_node_ids
+                    placer.available_node_ids = {node.node_id for node in all_nodes}
+                    feasible_without_reservations = placer.can_place(job)
+                    placer.available_node_ids = eligible_ids
+                else:
+                    feasible_without_reservations = False
+                if feasible_without_reservations:
                     # It only failed because reservation exclusion narrowed its
                     # own institute's view of the cluster -- not because the
                     # cluster is actually full. That's not the resource

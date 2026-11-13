@@ -1,7 +1,16 @@
+from app.domain.leaf_spine import (
+    DeviceKind,
+    EndpointRef,
+    LeafSpineTopology,
+    PortGroupConfig,
+    Switch,
+    SwitchHardwareConfig,
+    SwitchRole,
+)
 from app.domain.place_algorithm import PackAlgorithm, SpreadAlgorithm
 from app.domain.placer import Placer
 from app.domain.topology import Topology
-from app.enums import NodeStatus, ResourceStatus
+from app.enums import NodeStatus, ResourceStatus, ResourceType
 from tests.factories import make_cluster, make_job, make_node
 
 
@@ -92,3 +101,138 @@ def test_filter_nodes_excludes_insufficient_capacity():
 
     result = placer.filter_nodes([small, big], make_job(1, amount=2))
     assert result == [big]
+
+
+
+def test_placer_uses_leaf_spine_topology_through_common_contract():
+    nodes = [
+        make_node(70, [0], resource_count=2, nic_capacity_gbps=100),
+        make_node(71, [1], resource_count=2, nic_capacity_gbps=100),
+    ]
+    topology = LeafSpineTopology()
+    topology.add_switch(
+        Switch("leaf", SwitchRole.LEAF, SwitchHardwareConfig("test", (PortGroupConfig(4, 200),)))
+    )
+    for node in nodes:
+        topology.add_node(node)
+    for index, node in enumerate(nodes, start=1):
+        topology.add_link(
+            EndpointRef(DeviceKind.SWITCH, "leaf", f"p{index}"),
+            EndpointRef(DeviceKind.NODE, str(node.node_id), "nic0"),
+            capacity_gbps=100,
+            latency_us=index,
+        )
+
+    nodes[0].status = NodeStatus.ALLOCATED
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    reserved = placer.place(make_job(70))
+
+    assert reserved is not None
+    assert reserved[0].node is nodes[0]
+
+
+
+def _leaf_fabric(nodes, capacities=None, latencies=None):
+    topology = LeafSpineTopology()
+    topology.add_switch(
+        Switch("leaf", SwitchRole.LEAF, SwitchHardwareConfig("test", (PortGroupConfig(len(nodes), 200),)))
+    )
+    capacities = capacities or [100] * len(nodes)
+    latencies = latencies or [1] * len(nodes)
+    for node in nodes:
+        topology.add_node(node)
+    for index, node in enumerate(nodes):
+        topology.add_link(
+            EndpointRef(DeviceKind.SWITCH, "leaf", f"p{index + 1}"),
+            EndpointRef(DeviceKind.NODE, str(node.node_id), "nic0"),
+            capacity_gbps=capacities[index],
+            latency_us=latencies[index],
+        )
+    return topology
+
+
+def test_placer_automatically_spans_nodes_when_one_node_lacks_capacity():
+    nodes = [make_node(80, [0], 2), make_node(81, [1], 2)]
+    job = make_job(80, amount=3)
+    placer = Placer(nodes, PackAlgorithm(), Topology(make_cluster(1, [2], False)))
+
+    reserved = placer.place(job)
+
+    assert reserved is not None
+    assert {resource.node.node_id for resource in reserved} == {80, 81}
+    assert len(reserved) == 3
+
+
+def test_network_locality_can_prefer_more_nodes_than_the_minimum_feasible_group():
+    nodes = [
+        make_node(120, [0], 2, ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(121, [1], 2, ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(122, [2], 1, ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(123, [3], 1, ResourceType.GPU, nic_capacity_gbps=100),
+    ]
+    topology = _leaf_fabric(nodes, latencies=[1, 10, 1, 1])
+    job = make_job(120, resource_type=ResourceType.GPU, amount=4)
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    reserved = placer.place(job)
+
+    assert reserved is not None
+    # Node 120 + 121 can provide four GPUs, but their path costs 11.
+    # Nodes 120 + 122 + 123 provide the same four GPUs with total
+    # pairwise path cost 6, so locality wins over using fewer Nodes.
+    assert {resource.node.node_id for resource in reserved} == {120, 122, 123}
+
+
+def test_placer_always_rejects_disconnected_group_without_partial_reservation():
+    nodes = [
+        make_node(90, [0], 2, nic_capacity_gbps=100),
+        make_node(91, [1], 2, nic_capacity_gbps=100),
+    ]
+    topology = LeafSpineTopology()
+    topology.add_node(nodes[0])
+    topology.add_node(nodes[1])
+    job = make_job(90, amount=3)
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    assert placer.place(job) is None
+    assert all(resource.resource_status == ResourceStatus.AVAILABLE for node in nodes for resource in node.resources)
+
+
+def test_placer_uses_path_latency_for_locality_without_job_thresholds():
+    nodes = [
+        make_node(100, [0], 2, nic_capacity_gbps=100),
+        make_node(101, [1], 2, nic_capacity_gbps=100),
+    ]
+    topology = _leaf_fabric(nodes, capacities=[100, 50], latencies=[1, 2])
+    job = make_job(100, amount=3)
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    reserved = placer.place(job)
+
+    # No per-Job bandwidth/latency thresholds exist. A reachable path is
+    # sufficient; its latency is used only to rank candidate groups.
+    assert reserved is not None
+    assert len(reserved) == 3
+
+
+
+def test_placer_discovers_and_places_gpu_resources_through_leaf_spine_topology():
+    nodes = [
+        make_node(110, [0], resource_count=2, resource_type=ResourceType.GPU, nic_capacity_gbps=100),
+        make_node(111, [1], resource_count=2, resource_type=ResourceType.GPU, nic_capacity_gbps=100),
+    ]
+    topology = _leaf_fabric(nodes)
+    job = make_job(110, resource_type=ResourceType.GPU, amount=3)
+    placer = Placer(nodes, PackAlgorithm(), topology)
+
+    candidates = placer.find_candidates(job)
+    assert candidates == nodes
+
+    reserved = placer.place(job)
+
+    assert reserved is not None
+    assert len(reserved) == 3
+    assert all(resource.resource_type == ResourceType.GPU for resource in reserved)
+    assert {resource.node.node_id for resource in reserved} == {110, 111}
+    assert all(resource.resource_status == ResourceStatus.ALLOCATED for resource in reserved)

@@ -69,3 +69,25 @@ def test_node_coordinate_out_of_bounds_is_rejected():
     cluster = make_cluster(1, dimension=[4], wrap=True, topology_type=TopologyType.RING)
     with pytest.raises(ValueError):
         models.Node(node_id=0, cluster=cluster, coordinates=[10])
+
+
+
+def test_grid_view_exposes_generic_reachability_and_distance_contract():
+    cluster = make_cluster(1, dimension=[4], wrap=True)
+    nodes = [make_node(i, [i]) for i in range(4)]
+    view = Topology(cluster).build_view(nodes)
+
+    assert view.is_reachable(nodes[0], nodes[3])
+    assert view.distance(nodes[0], nodes[3]) == 1
+    assert view.path_latency(nodes[0], nodes[3]) is None
+    assert view.path_bandwidth(nodes[0], nodes[3]) is None
+
+
+def test_missing_grid_positions_can_make_nodes_unreachable():
+    cluster = make_cluster(1, dimension=[3], wrap=False)
+    left = make_node(0, [0])
+    right = make_node(2, [2])
+    view = Topology(cluster).build_view([left, right])
+
+    assert not view.is_reachable(left, right)
+    assert view.distance(left, right) == float("inf")

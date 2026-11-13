@@ -68,6 +68,30 @@ describe("JobSubmitPage", () => {
     expect(api.POST).not.toHaveBeenCalled();
   });
 
+  it("submits resource requirements without network configuration or a node-count choice", async () => {
+    vi.mocked(api.POST).mockResolvedValue({
+      data: { detail: "Job submitted", status_code: 201, job_id: 1000, status: "QUEUED" },
+      error: undefined,
+      response: new Response(),
+    } as never);
+
+    renderPage();
+    await screen.findByText("alice (client 1)");
+    await userEvent.selectOptions(screen.getByLabelText("Client"), "1");
+    await userEvent.clear(screen.getByLabelText("Amount for requirement 1"));
+    await userEvent.type(screen.getByLabelText("Amount for requirement 1"), "2");
+    await userEvent.click(screen.getByRole("button", { name: /submit job/i }));
+
+    expect(api.POST).toHaveBeenCalledWith("/jobs", {
+      body: {
+        client_id: 1,
+        priority: "NORMAL",
+        duration: 60,
+        requirements: [{ resource_type: "CPU", amount: 2 }],
+      },
+    });
+  });
+
   it("submits and navigates to the new job's detail page on success", async () => {
     vi.mocked(api.POST).mockResolvedValue({
       data: { detail: "Job submitted", status_code: 201, job_id: 999, status: "QUEUED" },
@@ -82,7 +106,12 @@ describe("JobSubmitPage", () => {
 
     expect(await screen.findByText("job detail page")).toBeInTheDocument();
     expect(api.POST).toHaveBeenCalledWith("/jobs", {
-      body: { client_id: 1, priority: "NORMAL", duration: 60, requirements: [{ resource_type: "CPU", amount: 1 }] },
+      body: {
+        client_id: 1,
+        priority: "NORMAL",
+        duration: 60,
+        requirements: [{ resource_type: "CPU", amount: 1 }],
+      },
     });
   });
 });

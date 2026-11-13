@@ -11,6 +11,7 @@ function makeNode(node_id: number, coordinates: number[]): NodeOut {
     node_id,
     coordinates,
     status: "IDLE",
+    nic_state: "UP",
     resources: [{ resource_type: "CPU", total: 4, free: 4 }],
   };
 }
