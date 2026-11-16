@@ -1,9 +1,10 @@
-"""Leaf-Spine fabric model and its generic placement-topology adapter."""
+"""Standalone leaf/spine fabric model; intentionally not wired into Placer yet."""
 
 from .devices import NetworkEndpoint, Port, Switch
+from .gpu_candidates import GpuCandidate, GpuCandidateFinder
 from .hardware import DEMO_4X400, PortGroupConfig, SwitchHardwareConfig
 from .link import Link, NetworkPath
-from .topology import LeafSpineTopology, LeafSpineTopologyView
+from .topology import LeafSpineTopology
 from .types import (
     DeviceInUseError,
     DeviceKind,
@@ -31,12 +32,13 @@ __all__ = [
     "DuplicateIdError",
     "EndpointOccupiedError",
     "EndpointRef",
+    "GpuCandidate",
+    "GpuCandidateFinder",
     "InconsistentInventoryError",
     "InvalidConnectionError",
     "InvalidLinkPropertiesError",
     "LeafSpineError",
     "LeafSpineTopology",
-    "LeafSpineTopologyView",
     "Link",
     "LinkKind",
     "NetworkEndpoint",

@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, Column, Enum, Integer, String
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -15,7 +15,6 @@ class Cluster(Base):
     topology_type= Column(Enum(TopologyType, name="topology_type"), nullable=False)
     dimension = Column(ARRAY(Integer), nullable=False)
     wrap = Column(Boolean, nullable=False, default=False)
-    fabric_config = Column(JSONB, nullable=True)
 
     nodes = relationship("Node", back_populates="cluster")
 

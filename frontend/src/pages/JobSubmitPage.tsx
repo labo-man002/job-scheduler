@@ -42,12 +42,7 @@ export function JobSubmitPage() {
   const submit = useMutation({
     mutationFn: async () => {
       const { data, error } = await api.POST("/jobs", {
-        body: {
-          client_id: clientId as number,
-          priority,
-          duration,
-          requirements,
-        },
+        body: { client_id: clientId as number, priority, duration, requirements },
       });
       if (error) throw error;
       return data;

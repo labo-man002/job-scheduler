@@ -7,5 +7,4 @@ class TopologyType(BasicEnum):
     TORUS_2D = "TORUS_2D"
     MESH_2D = "MESH_2D"
     FAT_TREE = "FAT_TREE"
-    LEAF_SPINE = "LEAF_SPINE"
   
