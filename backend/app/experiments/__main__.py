@@ -4,29 +4,58 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
+from .replay import run_replay
 from .replay_input import Scenario
 
 
 def git_provenance() -> dict:
-    repo = Path(__file__).resolve().parents[3]
-    try:
-        sha = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=repo, text=True, stderr=subprocess.DEVNULL
+    source = Path(__file__).resolve()
+    repo = source.parents[3]
+    env = os.environ.copy()
+    for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(key, None)
+
+    def git(*args: str) -> str:
+        return subprocess.check_output(
+            ["git", "--no-optional-locks", *args], cwd=repo, env=env, text=True,
+            stderr=subprocess.DEVNULL, timeout=5,
         ).strip()
-        changes = subprocess.check_output(
-            ["git", "status", "--porcelain"], cwd=repo, text=True, stderr=subprocess.DEVNULL
-        )
-    except (OSError, subprocess.CalledProcessError):
+
+    try:
+        if Path(git("rev-parse", "--show-toplevel")).resolve() != repo:
+            return {"git_sha": None, "worktree_dirty": None}
+        sha = git("rev-parse", "HEAD")
+        git("cat-file", "-e", f"{sha}:{source.relative_to(repo).as_posix()}")
+        changes = git("status", "--porcelain", "--untracked-files=normal")
+    except (OSError, subprocess.SubprocessError):
         return {"git_sha": None, "worktree_dirty": None}
     return {"git_sha": sha, "worktree_dirty": bool(changes)}
 
 
 def canonical_hash(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def write_report(path: Path, serialized: str) -> None:
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", newline="\n", dir=path.parent, prefix=".queue-replay-", delete=False
+        ) as temporary:
+            temp_path = Path(temporary.name)
+            temporary.write(serialized)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        temp_path.replace(path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
 
 def print_summary(runs: list[dict]) -> None:
@@ -52,24 +81,16 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        if args.output and args.output.resolve() == args.scenario.resolve():
-            parser.error("report output must differ from the scenario path")
-        scenario = Scenario.model_validate_json(args.scenario.read_bytes())
-    except (OSError, ValueError) as error:
+        output = args.output.resolve() if args.output else None
+        if output is not None and output.exists():
+            if output.samefile(args.scenario):
+                parser.error("report output must differ from the scenario path")
+            if not stat.S_ISREG(output.stat().st_mode):
+                parser.error("report output must be a regular file")
+        scenario_bytes = args.scenario.read_bytes()
+        scenario = Scenario.model_validate_json(scenario_bytes)
+    except (OSError, RuntimeError, ValueError) as error:
         parser.error(str(error))
-
-    # ORM model imports construct an engine lazily bound to its first
-    # connection. Replay never opens a session or connects to that engine.
-    for key, value in {
-        "DATABASE_HOSTNAME": "localhost",
-        "DATABASE_PORT": "5432",
-        "DATABASE_USERNAME": "replay",
-        "DATABASE_PASSWORD": "replay",
-        "DATABASE_NAME": "replay",
-    }.items():
-        os.environ.setdefault(key, value)
-
-    from .replay import run_replay
 
     config = {
         "seconds_per_tick": scenario.seconds_per_tick,
@@ -84,19 +105,20 @@ def main() -> None:
         "report_schema_version": 1,
         "scenario_schema_version": scenario.schema_version,
         "source": scenario.source,
+        "scenario_sha256": hashlib.sha256(scenario_bytes).hexdigest(),
         "trace_sha256": canonical_hash(trace),
         "config_sha256": canonical_hash(config),
         "config": config,
         **git_provenance(),
         "runs": runs,
     }
-    serialized = json.dumps(report, indent=2) + "\n"
     try:
-        if args.output:
-            args.output.write_text(serialized, encoding="utf-8")
+        serialized = json.dumps(report, indent=2, allow_nan=False) + "\n"
+        if output is not None:
+            write_report(output, serialized)
         else:
             sys.stdout.write(serialized)
-    except OSError as error:
+    except (OSError, ValueError) as error:
         parser.error(str(error))
     print_summary(runs)
 

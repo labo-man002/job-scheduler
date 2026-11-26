@@ -63,22 +63,27 @@ def make_job(spec: ReplayJob) -> Job:
 
 def run_replay(scenario: Scenario, policy: str) -> dict:
     """Run one policy against independent inventory and return its event ledger."""
+    if policy not in POLICIES:
+        raise ValueError(f"Unknown queue policy: {policy!r}")
     strategy = POLICIES[policy]()
     placer = make_placer(scenario)
     capacity = sum(node.gpus for node in scenario.nodes)
     arrivals = deque(sorted(scenario.jobs, key=lambda job: job.arrival))
-    impossible = {job.id for job in scenario.jobs if not placer.can_place(make_job(job))}
-    waiting: deque[ReplayJob] = deque()
+    # The input schema describes a fully connected cluster of interchangeable
+    # whole GPUs. Empty-cluster feasibility therefore depends only on count.
+    impossible = {job.id for job in scenario.jobs if job.gpus > capacity}
+    waiting: list[tuple[int, int, ReplayJob]] = []
     running: list[Completion] = []
     starts: dict[int, int] = {}
     events: list[dict] = []
-    sequence = 0
+    arrival_sequence = 0
+    start_sequence = 0
     allocated = 0
 
     while arrivals or running:
-        next_arrival = arrivals[0].arrival if arrivals else float("inf")
-        next_completion = running[0].tick if running else float("inf")
-        tick = min(next_arrival, next_completion)
+        tick = arrivals[0].arrival if arrivals else running[0].tick
+        if running:
+            tick = min(tick, running[0].tick)
 
         while running and running[0].tick == tick:
             completed = heappop(running)
@@ -92,22 +97,21 @@ def run_replay(scenario: Scenario, policy: str) -> dict:
                 events.append({"tick": tick, "kind": "rejected", "job_id": job.id, "reason": "cannot_fit_empty_cluster"})
                 continue
             events.append({"tick": tick, "kind": "arrival", "job_id": job.id})
-            waiting.append(job)
+            arrival_sequence += 1
+            heappush(waiting, (strategy.key(job), arrival_sequence, job))
 
-        # Existing policy order is stable, so blocked head jobs retain their
-        # original order among equivalent jobs across dispatch opportunities.
-        waiting = deque(strategy.sort(waiting))
+        # Keep a blocked job's original arrival position among jobs of equal rank.
         while waiting:
-            job = waiting[0]
+            _, _, job = waiting[0]
             resources = placer.place(make_job(job))
             if resources is None:
                 events.append({"tick": tick, "kind": "blocked", "job_id": job.id, "free_gpus": capacity - allocated})
                 break
-            waiting.popleft()
+            heappop(waiting)
             starts[job.id] = tick
-            sequence += 1
+            start_sequence += 1
             allocated += len(resources)
-            heappush(running, Completion(tick + job.duration, sequence, job, resources))
+            heappush(running, Completion(tick + job.duration, start_sequence, job, resources))
             events.append(
                 {
                     "tick": tick,

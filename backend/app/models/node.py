@@ -4,11 +4,11 @@ from sqlalchemy import Column, Enum, Float, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship, validates
 
-from app.database import Base
 from app.enums.nodeStatus import NodeStatus
 from app.enums.operationalState import OperationalState
 from app.enums.resourceStatus import ResourceStatus
 from app.enums.resourceType import ResourceType
+from app.orm_base import Base
 
 
 class Node(Base):

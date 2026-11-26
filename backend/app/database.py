@@ -1,9 +1,10 @@
 
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from .config import settings
+from .orm_base import Base as Base
 
 SQLALCHEMY_DATABASE_URL = (
     f"postgresql+psycopg2://"
@@ -19,7 +20,6 @@ engine = create_engine(
     echo=True
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
 # Dependency
 def get_db():

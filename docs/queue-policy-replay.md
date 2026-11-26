@@ -39,3 +39,10 @@ The CLI needs no database service. It prints a comparison on stderr and writes J
 The oracle isolates the redistribution of waiting time. On the three-node fixture, Priority lowers high-priority waits, raises low-priority waits and leaves more idle GPU-time over the run. Both policies complete 11 jobs and reject the same seven-GPU job on the six-GPU cluster.
 
 Times are in fixture ticks. The occupancy denominator is total GPU capacity multiplied by elapsed virtual time from tick zero to the last completion. Class wait statistics use completed jobs and expose sample counts. Median and nearest-rank p95 are omitted below five and twenty observations, respectively. These examples use synthetic arrivals and fixed durations. They measure allocation and queue behavior under the specified policy rules. Workload performance, network contention, and production outcomes require measured data and validation.
+
+## Supported replay inputs
+
+Schema version 1 accepts one to four connected nodes with up to 1,024 whole GPUs each. Node order defines positions along the line. Equal-priority arrivals at the same tick use the order in the trace. Arrival, duration, and seconds per tick each support integer values through 4,294,967,295. Duration and seconds per tick must be positive. The virtual clock jumps between events, so sparse arrival times do not require iterating through idle ticks.
+
+The runner retains the trace and event ledger in memory. Choose input sizes that fit the local machine. Demand above cluster capacity produces an unscheduled job with a reason in the report.
+For byte-identical provenance on repeated runs, write reports outside the checkout. Git includes untracked output files when determining whether the worktree is dirty.
