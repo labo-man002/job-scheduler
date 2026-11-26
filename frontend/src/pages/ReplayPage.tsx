@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import { ReplaySummary } from "@/components/ReplaySummary";
 
 type Scenario = "oracle" | "contention";
 
@@ -24,6 +25,7 @@ function Experiment({ scenario, counts }: { scenario: Scenario; counts: number[]
     {replay.isError && <p role="alert" className="text-destructive">{replay.error.message}</p>}
     {result && <section aria-label="Comparison results" className="space-y-6">
       <p className="text-sm text-muted-foreground">{counts.length} nodes · {counts.join(" + ")} GPUs · {result.seconds_per_tick} seconds per tick</p>
+      <ReplaySummary result={result} capacity={counts.reduce((sum, n) => sum + n, 0)} />
       <div className="grid gap-4 sm:grid-cols-2">
         {(["fifo", "priority"] as const).map(policy => {
           const m = result[policy];

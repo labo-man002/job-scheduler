@@ -20,6 +20,7 @@ it("runs the selected scenario and clears results when the scenario changes", as
   await user.type(screen.getByLabelText("Node 2 GPUs"), "4");
   await user.click(screen.getByRole("button", { name: "Run comparison" }));
   expect(await screen.findByRole("region", { name: "Comparison results" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Both policies finished at 3 min." })).toBeInTheDocument();
   expect(api.POST).toHaveBeenCalledWith("/replay/{scenario_name}", { params: { path: { scenario_name: "oracle" } }, body: { gpus_per_node: [2, 4] } });
   await user.selectOptions(screen.getByLabelText("Scenario"), "contention");
   expect(screen.queryByRole("region", { name: "Comparison results" })).toBeNull();
