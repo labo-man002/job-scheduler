@@ -122,6 +122,8 @@ Quota enforcement is a separate admission decision. Once J1 has four GPUs `RUNNI
 
 The implemented building blocks are [per-unit GPU availability](backend/app/domain/placer.py), [institute quotas](backend/app/domain/server.py), and [read-only leaf–spine path and GPU-candidate queries](docs/gpu-leaf-spine.md), with tests for [fabric behavior](backend/tests/domain/test_leaf_spine.py), [candidate filtering](backend/tests/domain/test_leaf_spine_gpu_candidates.py), and [quota enforcement](backend/tests/integration/test_server.py). Connecting these to NVSwitch-aware, communication-aware placement is future work.
 
+Run the [offline queue-policy replay](docs/queue-policy-replay.md) to compare FIFO and Priority with identical arrivals, resource demands, and service times.
+
 ## Engineering choices and their tradeoffs
 
 | Choice | Consequence and evidence |

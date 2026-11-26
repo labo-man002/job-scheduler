@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "source": "Synthetic two-GPU hand-calculated scenario",
+  "seconds_per_tick": 60,
+  "nodes": [{"id": 1, "gpus": 2}],
+  "jobs": [
+    {"id": 1, "arrival": 0, "duration": 5, "gpus": 2, "priority": "NORMAL"},
+    {"id": 2, "arrival": 1, "duration": 8, "gpus": 2, "priority": "LOW"},
+    {"id": 3, "arrival": 2, "duration": 1, "gpus": 1, "priority": "HIGH"}
+  ]
+}
