@@ -3,6 +3,7 @@ import { Network, Boxes, ListTodo, Moon, Sun } from "lucide-react";
 import { Toaster } from "sonner";
 import { ClustersPage } from "@/pages/ClustersPage";
 import { ClusterDetailPage } from "@/pages/ClusterDetailPage";
+import { ReplayPage } from "@/pages/ReplayPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { JobSubmitPage } from "@/pages/JobSubmitPage";
 import { JobDetailPage } from "@/pages/JobDetailPage";
@@ -29,6 +30,7 @@ function Nav({ theme, toggleTheme }: { theme: "light" | "dark"; toggleTheme: () 
         <ListTodo className="size-4" />
         Jobs
       </NavLink>
+      <NavLink to="/replay" className={linkClass}>Replay</NavLink>
       {/* Admin (#67) lands here once that ticket is built. */}
       <Button
         variant="ghost"
@@ -54,6 +56,7 @@ function App() {
         <Route path="/" element={<ClustersPage />} />
         <Route path="/clusters" element={<ClustersPage />} />
         <Route path="/clusters/:clusterId" element={<ClusterDetailPage />} />
+        <Route path="/replay" element={<ReplayPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/jobs/new" element={<JobSubmitPage />} />
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />
