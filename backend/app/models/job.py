@@ -1,9 +1,9 @@
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, func
 from sqlalchemy.orm import relationship
 
-from app.database import Base
 from app.enums.jobStatus import JobStatus
 from app.enums.priority import Priority
+from app.orm_base import Base
 
 
 class Job(Base):

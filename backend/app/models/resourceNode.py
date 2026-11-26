@@ -1,9 +1,9 @@
 from sqlalchemy import Column, Enum, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 
-from app.database import Base
 from app.enums.resourceStatus import ResourceStatus
 from app.enums.resourceType import ResourceType
+from app.orm_base import Base
 
 
 class ResourceNode(Base):

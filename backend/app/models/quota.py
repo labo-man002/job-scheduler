@@ -1,8 +1,8 @@
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 
-from app.database import Base
 from app.enums.resourceType import ResourceType
+from app.orm_base import Base
 
 
 class Quota(Base):

@@ -2,9 +2,9 @@ from sqlalchemy import Boolean, Column, Enum, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import relationship
 
-from app.database import Base
 from app.enums.resourceStatus import ResourceStatus
 from app.enums.topologyType import TopologyType
+from app.orm_base import Base
 
 
 class Cluster(Base):

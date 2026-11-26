@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Enum, ForeignKey, Integer
 
-from app.database import Base
 from app.enums.resourceType import ResourceType
+from app.orm_base import Base
 
 
 class ResourceRequirement(Base):

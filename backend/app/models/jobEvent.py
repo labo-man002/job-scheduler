@@ -1,8 +1,8 @@
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 
-from app.database import Base
 from app.enums.jobStatus import JobStatus
+from app.orm_base import Base
 
 
 class JobEvent(Base):

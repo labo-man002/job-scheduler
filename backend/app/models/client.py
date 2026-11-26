@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
-from app.database import Base
 from app.enums.clientStatus import ClientStatus
+from app.orm_base import Base
 
 
 class Client(Base):
