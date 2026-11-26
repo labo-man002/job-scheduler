@@ -1,13 +1,13 @@
 """Policy comparisons for the checked-in replay scenarios."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.experiments.replay import run_replay
-from app.experiments.replay_input import Scenario
+from app.experiments.replay_input import MAX_NODE_GPUS, PositiveInt, ReplayNode, Scenario
 
 router = APIRouter(prefix="/replay", tags=["replay"])
 EXAMPLES = Path(__file__).resolve().parents[3] / "examples" / "queue-replay"
@@ -38,9 +38,28 @@ class Comparison(BaseModel):
     jobs: list[JobComparison]
 
 
+ScenarioName = Literal["oracle", "contention"]
+
+
+class ClusterConfig(BaseModel):
+    gpus_per_node: Annotated[list[Annotated[PositiveInt, Field(le=MAX_NODE_GPUS)]], Field(min_length=1, max_length=4)]
+
+
 @router.get("/{scenario_name}", response_model=Comparison)
-def compare(scenario_name: Literal["oracle", "contention"]):
+def compare(scenario_name: ScenarioName):
+    return compare_cluster(scenario_name, None)
+
+
+@router.post("/{scenario_name}", response_model=Comparison)
+def compare_custom(scenario_name: ScenarioName, config: ClusterConfig):
+    return compare_cluster(scenario_name, config)
+
+
+def compare_cluster(scenario_name: ScenarioName, config: ClusterConfig | None):
     scenario = Scenario.model_validate_json((EXAMPLES / f"{scenario_name}.json").read_bytes())
+    if config is not None:
+        nodes = tuple(ReplayNode(id=i, gpus=count) for i, count in enumerate(config.gpus_per_node, start=1))
+        scenario = scenario.model_copy(update={"nodes": nodes})
     fifo, priority = (run_replay(scenario, policy) for policy in ("fifo", "priority"))
     priority_jobs = {job["id"]: job for job in priority["jobs"]}
     return {

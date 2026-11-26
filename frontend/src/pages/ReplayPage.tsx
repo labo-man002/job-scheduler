@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 
 type Scenario = "oracle" | "contention";
 
-function Experiment({ scenario }: { scenario: Scenario }) {
+function Experiment({ scenario, counts }: { scenario: Scenario; counts: number[] }) {
   const replay = useMutation({
     mutationFn: async () => {
-      const { data, error } = await api.GET("/replay/{scenario_name}", {
+      const { data, error } = await api.POST("/replay/{scenario_name}", {
         params: { path: { scenario_name: scenario } },
+        body: { gpus_per_node: counts },
       });
       if (error || !data) throw new Error("Replay failed. Check the backend connection and try again.");
       return data;
@@ -17,12 +18,12 @@ function Experiment({ scenario }: { scenario: Scenario }) {
   });
   const result = replay.data;
   return <>
-    <Button disabled={replay.isPending} onClick={() => replay.mutate()}>
+    <Button disabled={replay.isPending || counts.some(n => !Number.isInteger(n) || n < 1 || n > 1024)} onClick={() => replay.mutate()}>
       {replay.isPending ? "Running…" : "Run comparison"}
     </Button>
     {replay.isError && <p role="alert" className="text-destructive">{replay.error.message}</p>}
     {result && <section aria-label="Comparison results" className="space-y-6">
-      <p className="text-sm text-muted-foreground">{result.source} · {result.seconds_per_tick} seconds per tick</p>
+      <p className="text-sm text-muted-foreground">{counts.length} nodes · {counts.join(" + ")} GPUs · {result.seconds_per_tick} seconds per tick</p>
       <div className="grid gap-4 sm:grid-cols-2">
         {(["fifo", "priority"] as const).map(policy => {
           const m = result[policy];
@@ -56,14 +57,29 @@ function Experiment({ scenario }: { scenario: Scenario }) {
 
 export function ReplayPage() {
   const [scenario, setScenario] = useState<Scenario>("oracle");
+  const [nodes, setNodes] = useState<string[]>(["2"]);
   return <main className="mx-auto max-w-4xl space-y-5 px-4 py-8">
     <h1 className="text-3xl font-semibold tracking-tight">Queue policy replay</h1>
     <p className="text-muted-foreground">Compare FIFO and Priority on the same synthetic workload with fixed job durations.</p>
     <label className="flex flex-wrap items-center gap-3 text-sm font-medium">Scenario
       <select className="rounded-md border bg-background px-3 py-2" value={scenario} onChange={e => setScenario(e.target.value as Scenario)}>
-        <option value="oracle">Two-GPU hand check</option><option value="contention">Three-node contention</option>
+        <option value="oracle">Hand-check workload</option><option value="contention">Contention workload</option>
       </select>
     </label>
-    <Experiment key={scenario} scenario={scenario} />
+    <fieldset className="space-y-3 rounded-xl border p-4">
+      <legend className="px-2 font-semibold">Cluster configuration</legend>
+      <label>Node count <select className="ml-2 rounded border bg-background p-1" value={nodes.length}
+        onChange={e => setNodes(Array.from({ length: Number(e.target.value) }, (_, i) => nodes[i] ?? "2"))}>
+        {[1, 2, 3, 4].map(n => <option key={n}>{n}</option>)}
+      </select></label>
+      <div className="flex flex-wrap gap-4">{nodes.map((count, index) =>
+        <label key={index} className="grid gap-1 text-sm">Node {index + 1} GPUs
+          <input className="w-24 rounded border bg-background p-2" type="number" min={1} max={1024} required
+            value={count} onChange={e => setNodes(nodes.map((n, i) => i === index ? e.target.value : n))} />
+        </label>
+      )}</div>
+      <p className="text-sm text-muted-foreground">Linear topology · 1–1,024 whole GPUs per node</p>
+    </fieldset>
+    <Experiment key={scenario + "/" + nodes.join(",")} scenario={scenario} counts={nodes.map(Number)} />
   </main>;
 }
