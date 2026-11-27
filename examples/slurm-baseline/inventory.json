@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "data_kind": "synthetic",
+  "trace_source": "Hand-authored public regression oracle in Slurm sacct --parsable2 format. This is not operator data.",
+  "inventory_source": "Synthetic independent two-GPU snapshot for the oracle. Its capacity is fixed over the window.",
+  "cluster": "fixture",
+  "partition": "gpu-oracle",
+  "snapshot_at": "2026-11-26T12:00:00Z",
+  "accounting_captured_at": "2026-11-26T13:00:00Z",
+  "window_start": "2026-11-26T12:00:00Z",
+  "window_end": "2026-11-26T12:00:30Z",
+  "gpu_type": "a100",
+  "nodes": [{"id": 1, "gpus": 2}],
+  "priority_class_minimums": {"LOW": 0, "NORMAL": 10, "HIGH": 50, "URGENT": 100}
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "baseline_policy": "fifo",
+  "objective": "makespan_ticks_from_zero",
+  "constraints": {"max_gpu_capacity": 4, "max_unscheduled_jobs": 0},
+  "alternatives": [
+    {"name": "priority", "policy": "priority"},
+    {"name": "one-gpu", "policy": "fifo", "nodes": [{"id": 1, "gpus": 1}]},
+    {"name": "four-gpu", "policy": "fifo", "nodes": [{"id": 1, "gpus": 4}]},
+    {
+      "name": "disconnected-two-gpu",
+      "policy": "fifo",
+      "nodes": [{"id": 1, "gpus": 1}, {"id": 2, "gpus": 1}],
+      "topology": {
+        "kind": "leaf_spine",
+        "leaves": [1, 2],
+        "uplinks": [],
+        "attachments": [{"node": 1, "leaf": 1}, {"node": 2, "leaf": 2}]
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workload": "resnet50-v1.5-imagenet-amp",
+  "measurement": "mean_single_gpu_batch_latency_ms",
+  "provenance": {
+    "kind": "published_measurements",
+    "publisher": "NVIDIA DeepLearningExamples",
+    "source": "https://github.com/NVIDIA/DeepLearningExamples/blob/5843f4e5a1220dd98936e477d8597d8a77320666/PyTorch/Classification/ConvNets/resnet50v1.5/README.md#inference-performance-results",
+    "revision": "5843f4e5a1220dd98936e477d8597d8a77320666",
+    "source_sha256": "8a9d0785cd5d5eb228dd45f5ff460b2b108a1e9743700b4b65a3a5e94a23712e",
+    "setup": "ResNet50 v1.5 inference benchmark, ImageNet, PyTorch 21.03 NGC container, mixed precision; NVIDIA DGX-1 with a single V100 16GB, and NVIDIA T4.",
+    "scope": "Latency Avg column in each Mixed Precision Inference Latency table. Hardware-labelled published aggregate measurements, one value per batch setting. Original replicate traces, placement changes, and run distribution are unavailable."
+  },
+  "holdout_batch_sizes": [4, 16, 64, 128],
+  "measurements": [
+    {"hardware": "V100-16GB", "batch_size": 1, "latency_ms": 12.78},
+    {"hardware": "V100-16GB", "batch_size": 2, "latency_ms": 13.01},
+    {"hardware": "V100-16GB", "batch_size": 4, "latency_ms": 13.41},
+    {"hardware": "V100-16GB", "batch_size": 8, "latency_ms": 13.65},
+    {"hardware": "V100-16GB", "batch_size": 16, "latency_ms": 14.00},
+    {"hardware": "V100-16GB", "batch_size": 32, "latency_ms": 15.84},
+    {"hardware": "V100-16GB", "batch_size": 64, "latency_ms": 23.18},
+    {"hardware": "V100-16GB", "batch_size": 128, "latency_ms": 43.55},
+    {"hardware": "V100-16GB", "batch_size": 256, "latency_ms": 84.14},
+    {"hardware": "T4", "batch_size": 1, "latency_ms": 12.96},
+    {"hardware": "T4", "batch_size": 2, "latency_ms": 13.18},
+    {"hardware": "T4", "batch_size": 4, "latency_ms": 12.99},
+    {"hardware": "T4", "batch_size": 8, "latency_ms": 12.82},
+    {"hardware": "T4", "batch_size": 16, "latency_ms": 15.80},
+    {"hardware": "T4", "batch_size": 32, "latency_ms": 29.54},
+    {"hardware": "T4", "batch_size": 64, "latency_ms": 57.41},
+    {"hardware": "T4", "batch_size": 128, "latency_ms": 114.24},
+    {"hardware": "T4", "batch_size": 256, "latency_ms": 225.95}
+  ]
+}

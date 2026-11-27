@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "source": "synthetic leaf–spine locality controls",
+  "seconds_per_tick": 60,
+  "nodes": [
+    {"id": 1, "gpus": 1},
+    {"id": 2, "gpus": 1},
+    {"id": 3, "gpus": 1},
+    {"id": 4, "gpus": 1}
+  ],
+  "topology": {
+    "kind": "leaf_spine",
+    "leaves": [1, 2],
+    "uplinks": [{"leaf": 1, "spine": 1}, {"leaf": 2, "spine": 1}],
+    "attachments": [{"node": 1, "leaf": 1}, {"node": 2, "leaf": 2}, {"node": 3, "leaf": 1}, {"node": 4, "leaf": 2}]
+  },
+  "jobs": [
+    {"id": 1, "arrival": 0, "duration": 4, "gpus": 2, "priority": "NORMAL"},
+    {"id": 2, "arrival": 1, "duration": 3, "gpus": 3, "priority": "HIGH"},
+    {"id": 3, "arrival": 2, "duration": 1, "gpus": 5, "priority": "LOW"}
+  ]
+}

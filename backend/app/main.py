@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.logging_config import configure_logging
-from app.routers import clients, clusters, institutes, jobs, nodes, quotas, replay, reservations
+from app.routers import clients, clusters, institutes, jobs, nodes, quotas, replay, replay_runs, reservations
 
 configure_logging()
 
@@ -20,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(jobs.router)
+app.include_router(replay_runs.router)
 app.include_router(replay.router)
 app.include_router(clients.router)
 app.include_router(institutes.router)

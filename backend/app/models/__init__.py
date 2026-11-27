@@ -8,6 +8,7 @@ from .jobEvent import JobEvent
 from .node import Node
 from .nodeReservation import NodeReservation
 from .quota import Quota
+from .replayRun import ReplayRun
 from .reservation import Reservation
 from .resourceNode import ResourceNode
 from .resourceRequirement import ResourceRequirement
@@ -24,6 +25,7 @@ __all__ = [
     "Node",
     "NodeReservation",
     "Quota",
+    "ReplayRun",
     "Reservation",
     "ResourceNode",
     "ResourceRequirement",

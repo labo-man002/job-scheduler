@@ -14,9 +14,12 @@ export function ReplaySummary({ result, capacity }: { result: Comparison; capaci
     : (finishDelta > 0 ? "FIFO" : "Priority") + " finished " + time(Math.abs(finishDelta)) + " earlier.";
   const rejected = jobs.filter(job => job.reason === "cannot_fit_empty_cluster");
   const gpuTime = (m: Comparison["fifo"]) => {
-    const available = capacity * m.makespan_ticks_from_zero;
-    return number.format(Math.round((m.occupancy ?? 0) * available)) + " of " + number.format(available);
+    if (m.allocated_gpu_ticks == null || m.available_gpu_ticks == null) return null;
+    return number.format(m.allocated_gpu_ticks) + " of " + number.format(m.available_gpu_ticks);
   };
+
+  const fifoGpuTime = gpuTime(fifo);
+  const priorityGpuTime = gpuTime(priority);
 
   return <section className="space-y-3 rounded-xl border bg-card p-5" aria-label="Run interpretation">
     <h2 className="text-xl font-semibold">{headline}</h2>
@@ -33,10 +36,10 @@ export function ReplaySummary({ result, capacity }: { result: Comparison; capaci
         return <li key={rank}><strong>{rank.toLowerCase()} priority ({pairs.length})</strong> — mean wait was {time(before)} with FIFO and {time(after)} with Priority, {change}.</li>;
       })}
     </ul>
-    {fifo.occupancy != null && priority.occupancy != null && <p className="text-sm">
-      FIFO allocated {gpuTime(fifo)} available GPU-ticks. Priority allocated {gpuTime(priority)}.
+    {fifoGpuTime != null && priorityGpuTime != null && <p className="text-sm">
+      FIFO allocated {fifoGpuTime} available GPU-ticks. Priority allocated {priorityGpuTime}.
       {" "}One GPU-tick means reserving one GPU for {time(1)}. Job execution times are fixed in this experiment.
     </p>}
-    {rejected.length > 0 && <p className="text-sm">Jobs exceeding this cluster’s {capacity}-GPU capacity: {rejected.map(job => "#" + job.id + " (" + job.gpus + " GPUs requested)").join(", ")}.</p>}
+    {rejected.length > 0 && <p className="text-sm">Jobs exceeding this cluster’s {capacity}-GPU capacity: {rejected.slice(0, 10).map(job => "#" + job.id + " (" + job.gpus + " GPUs requested)").join(", ")}{rejected.length > 10 ? ` and ${rejected.length - 10} more` : ""}.</p>}
   </section>;
 }
