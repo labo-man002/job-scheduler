@@ -3,7 +3,10 @@ import { Network, Boxes, ListTodo, Moon, Sun } from "lucide-react";
 import { Toaster } from "sonner";
 import { ClustersPage } from "@/pages/ClustersPage";
 import { ClusterDetailPage } from "@/pages/ClusterDetailPage";
-import { ReplayPage } from "@/pages/ReplayPage";
+import { ReplayForkPage, ReplayPage } from "@/pages/ReplayPage";
+import { ReplayRunPage } from "@/pages/ReplayRunPage";
+import { ReplayHistoryPage } from "@/pages/ReplayHistoryPage";
+import { ReplayComparisonPage } from "@/pages/ReplayComparisonPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { JobSubmitPage } from "@/pages/JobSubmitPage";
 import { JobDetailPage } from "@/pages/JobDetailPage";
@@ -57,6 +60,10 @@ function App() {
         <Route path="/clusters" element={<ClustersPage />} />
         <Route path="/clusters/:clusterId" element={<ClusterDetailPage />} />
         <Route path="/replay" element={<ReplayPage />} />
+        <Route path="/replay/runs" element={<ReplayHistoryPage />} />
+        <Route path="/replay/runs/:runId" element={<ReplayRunPage />} />
+        <Route path="/replay/runs/:runId/fork" element={<ReplayForkPage />} />
+        <Route path="/replay/compare" element={<ReplayComparisonPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/jobs/new" element={<JobSubmitPage />} />
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />

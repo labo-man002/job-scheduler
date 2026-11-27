@@ -41,7 +41,7 @@ The longer-term goal is a reproducible **what-if environment**: change a workloa
 | **Cluster topology** | Ring, 2D mesh, 2D torus, and 3D torus models; neighbor/distance queries and topology-based Pack/Spread placement. |
 | **Allocation controls** | Institute-level quotas, time-bounded node reservations, and PostgreSQL row locking around allocation decisions. |
 | **Interface** | Job submission and inspection, interactive cluster maps, resource details, and light/dark themes. |
-| **GPU network fabric** | A separate in-memory leaf–spine domain model with switches, ports, links, operational states, constrained path queries, and read-only GPU candidate discovery. **Not yet connected to the live placer.** |
+| **GPU network fabric** | An in-memory leaf–spine domain model with switches, ports, links, operational states, constrained path queries, and read-only GPU candidate discovery. **Not yet connected to the live placer.** |
 
 The distinction in the last row matters: GPU resources can be requested and allocated by the existing system, while network-aware GPU placement remains work in progress.
 
@@ -82,7 +82,7 @@ The grid-based topology used by Pack/Spread is not enough to represent a GPU dat
 - Deterministic path discovery subject to minimum nominal link capacity and maximum path latency.
 - Read-only candidate discovery that combines existing GPU availability with network-path feasibility.
 
-This was introduced in [PR #86](https://github.com/labo-man002/job-scheduler/pull/86) and is documented in [GPU leaf–spine design](docs/gpu-leaf-spine.md). It **does not yet** persist fabric state, reserve bandwidth, model contention, or influence scheduler/placer allocation decisions.
+This was introduced in [PR #86](https://github.com/labo-man002/job-scheduler/pull/86) and is documented in [GPU leaf–spine design](docs/gpu-leaf-spine.md). It **does not yet** persist fabric state, reserve bandwidth, model contention, or influence live scheduler allocations. Offline replay can use an explicit fabric to constrain GPU placement.
 
 ## A GPU placement and scheduling thought experiment
 
@@ -217,7 +217,7 @@ The main question is how **hardware topology and workload characteristics should
 Areas under active design or planned exploration:
 
 1. **Connect fabric feasibility to placement.** Integrate GPU/server and network-path constraints into the scheduler–placer boundary while preserving transactional resource ownership.
-2. **Build reproducible workload experiments.** Add a simulation clock, workload replay, and comparative metrics for waiting time, utilization, fragmentation, and throughput.
+2. **Validate workload replay against observations.** The simulator already advances a virtual clock and compares queue wait, occupancy and throughput. The next evidence needed is a representative accounting window with matching inventory.
 3. **Model communication costs more deeply.** Move beyond nominal path feasibility toward bandwidth reservation, contention, and communication-aware policies.
 4. **Expand heterogeneous GPU topology.** Explore PCIe/NUMA affinity, NVLink/NVSwitch, InfiniBand/RoCE, and additional fabric shapes without discarding the existing mesh/torus models.
 
@@ -227,6 +227,7 @@ These are directions, not claims about implemented functionality or measured AI-
 
 | Document | Focus |
 | --- | --- |
+| [Workload experiments](docs/workload-experiments.md) | Operator walkthrough, validation boundaries, and milestone tickets. |
 | [Architecture](docs/architecture.md) | Scheduler–placer split, domain concepts, and class diagrams. |
 | [Canonical glossary](docs/glossary.md) | Exact definitions, ownership, examples, and implemented-versus-proposed vocabulary. |
 | [Historical data model](docs/erd.md) | Legacy ERD and schema rationale; [alignment audit #92](https://github.com/labo-man002/job-scheduler/issues/92) is open. |

@@ -99,10 +99,13 @@ def main() -> None:
         "topology": "linear",
         "service_time": "fixed",
     }
+    if scenario.schema_version == 2:
+        config["topology"] = scenario.effective_topology.model_dump(mode="json")
+        config["queue_policies"] = ["fifo", "priority"]
     trace = [job.model_dump(mode="json") for job in scenario.jobs]
     runs = [run_replay(scenario, policy) for policy in ("fifo", "priority")]
     report = {
-        "report_schema_version": 1,
+        "report_schema_version": scenario.schema_version,
         "scenario_schema_version": scenario.schema_version,
         "source": scenario.source,
         "scenario_sha256": hashlib.sha256(scenario_bytes).hexdigest(),

@@ -40,6 +40,25 @@ The oracle isolates the redistribution of waiting time. On the three-node fixtur
 
 Times are in fixture ticks. The occupancy denominator is total GPU capacity multiplied by elapsed virtual time from tick zero to the last completion. Class wait statistics use completed jobs and expose sample counts. Median and nearest-rank p95 are omitted below five and twenty observations, respectively. These examples use synthetic arrivals and fixed durations. They measure allocation and queue behavior under the specified policy rules. Workload performance, network contention, and production outcomes require measured data and validation.
 
+## Compare leaf-spine placements
+
+Scenario version 1 uses the original linear topology. Version 2 requires a topology object. Use `{"kind": "linear"}` to select the original layout explicitly. For leaf-spine, declare one to four leaf IDs, one attachment per compute node, and optional leaf-to-spine uplinks. A spine exists when at least one uplink references its ID. The checked-in [leaf-spine fixture](../examples/queue-replay/leaf-spine.json) is a connected starting configuration. In the replay form, select **Leaf-spine** to load the preset, then edit node attachments or uplinks.
+
+```bash
+PYTHONPATH=backend python -m app.experiments examples/queue-replay/leaf-spine.json --output /tmp/queue-fabric.json
+```
+
+Each node has one NIC in replay. Every link represents 100 Gbps and one microsecond of illustrative path latency. The existing placer uses reachability and path cost to compare candidate groups. An allocation is cross-leaf when its selected nodes attach to more than one leaf. The report gives each job's selected node IDs, leaf IDs and cross-leaf classification. The linear layout has no leaf classification.
+
+| Control | Expected behavior |
+| --- | --- |
+| Connected fabric fixture | The first two-GPU job uses nodes 1 and 3 on leaf 1. The three-GPU job waits for the first job to finish, then crosses leaves 1 and 2. |
+| Remove the leaf 2 uplink | The two-GPU job still fits leaf 1. The three-GPU job is rejected with `no_connected_allocation` even though four GPUs exist across both leaves. |
+| Change topology to linear | The first two-GPU job uses nodes 1 and 2. The three-GPU job can start after its resources are released. |
+| All layouts | The five-GPU job exceeds total inventory and is rejected with `cannot_fit_empty_cluster`. |
+
+The configured latency only affects placement scoring in this experiment. Once a job starts, its runtime always comes from the fixture. These controls verify placement behavior under changes to the fabric and do not estimate application slowdown.
+
 ## Supported replay inputs
 
 Schema version 1 accepts one to four connected nodes with up to 1,024 whole GPUs each. Node order defines positions along the line. Equal-priority arrivals at the same tick use the order in the trace. Arrival, duration, and seconds per tick each support integer values through 4,294,967,295. Duration and seconds per tick must be positive. The virtual clock jumps between events, so sparse arrival times do not require iterating through idle ticks.
