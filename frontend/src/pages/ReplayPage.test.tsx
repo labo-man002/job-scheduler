@@ -49,3 +49,24 @@ it("keeps an invalid scenario file out of the replay request", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("compatible replay");
   expect(screen.getByRole("button", {name:"Run comparison"})).toBeDisabled();
 });
+
+it("submits the imported trace with its node identifiers and edited GPU capacity", async () => {
+  const post = vi.mocked(api.POST);
+  post.mockImplementationOnce((async () => ({ data: { id: "imported" }, response: new Response() })) as typeof api.POST);
+  openReplay();
+  const user = userEvent.setup();
+  const scenario = {
+    schema_version: 1, source: "Synthetic Slurm import", seconds_per_tick: 1,
+    nodes: [{ id: 17, gpus: 2 }],
+    jobs: [{id: 1, arrival: 0, duration: 2, gpus: 1, priority: "NORMAL"}],
+  };
+  await user.selectOptions(screen.getByLabelText("Scenario"), "import");
+  await user.upload(screen.getByLabelText("Scenario JSON file"),
+    new File([JSON.stringify(scenario)], "scenario.json", {type:"application/json"}));
+  const capacity = await screen.findByLabelText("Node 17 GPUs");
+  await user.clear(capacity);
+  await user.type(capacity, "4");
+  await user.click(screen.getByRole("button", {name:"Run comparison"}));
+  expect(await screen.findByText("Saved run imported")).toBeVisible();
+  expect(post).toHaveBeenLastCalledWith("/replay/runs", {body: {request_id: expect.any(String), scenario, gpus_per_node: [4]}});
+});
