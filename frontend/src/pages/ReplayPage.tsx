@@ -3,9 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { loadReplayRun, saveReplayRun, type ReplayRun, type RunRequest } from "@/api/replay";
 import { Button } from "@/components/ui/button";
-import {
-  ReplayTopologyFields, resizeReplayTopology, type ReplayTopology,
-} from "@/components/ReplayTopologyFields";
+import { ReplayTopologyFields } from "@/components/ReplayTopologyFields";
+import { resizeReplayTopology, type ReplayTopology } from "@/lib/replayTopology";
 
 type Workload = NonNullable<RunRequest["preset"]> | "import";
 type Scenario = NonNullable<RunRequest["scenario"]>;

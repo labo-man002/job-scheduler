@@ -1,6 +1,6 @@
 # Saved replay runs
 
-Run the Alembic migrations before using web run history. The web application currently has a single-user, instance-wide history because it has no authenticated user or workspace identity. Restrict network access to the intended operator. A deployment that serves multiple users needs authenticated scope checks on every history operation before exposing this API.
+Use a UTF-8 PostgreSQL database for scenario provenance and run names. Run the Alembic migrations before using web run history. The web application currently has a single-user, instance-wide history because it has no authenticated user or workspace identity. Restrict network access to the intended operator. A deployment that serves multiple users needs authenticated scope checks on every history operation before exposing this API.
 
 ## Save, reopen and reuse
 

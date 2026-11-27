@@ -14,3 +14,5 @@ Open the saved result, give it a recognizable name and reload the page. Use the 
 | Check practical scale | [Measured operating envelope](replay-scale-benchmark.md) | Measurements describe specific workloads and hardware. Re-run the benchmark for another environment. |
 
 The [queue replay specification](queue-policy-replay.md) defines the event order and the oracle. The [milestone tracker](https://github.com/labo-man002/job-scheduler/issues/106) links the delivery dependencies.
+
+See [Slurm baseline and cohort export](slurm-baseline-replay.md) and [runtime calibration and configuration search](calibration-and-search.md) for runnable commands and reference results.

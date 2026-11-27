@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { listReplayRuns } from "@/api/replay";
 import { Button } from "@/components/ui/button";
-import { clusterShape, runName, runTime } from "./ReplayRunPage";
+import { clusterShape, runName, runTime } from "@/lib/replayDisplay";
 
 export function ReplayHistoryPage() {
   const [search, setSearch] = useSearchParams();

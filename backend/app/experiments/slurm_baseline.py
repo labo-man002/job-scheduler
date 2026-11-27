@@ -314,7 +314,7 @@ def compare_jobs(jobs: list[ObservedJob], replay: dict, origin: int, left: int, 
     }
 
 
-def build_report(trace: bytes, inventory_bytes: bytes, policy: str) -> dict:
+def build_report(trace: bytes, inventory_bytes: bytes, policy: str, *, include_scenario: bool = False) -> dict:
     if policy not in POLICIES:
         raise ValueError(f"Unknown queue policy: {policy!r}")
     inventory = Inventory.model_validate_json(inventory_bytes)
@@ -385,6 +385,14 @@ def build_report(trace: bytes, inventory_bytes: bytes, policy: str) -> dict:
             for i, job in enumerate(jobs, start=1)
         ],
     })
+    if include_scenario:
+        normalized = scenario.model_dump(mode="json", exclude_none=True)
+        normalized["source"] = (
+            f"{inventory.data_kind} Slurm selected cohort, empty-cluster counterfactual; "
+            f"historical boundary state excluded. Source: {inventory.trace_source}. "
+            f"Accounting SHA-256: {report['accounting_sha256']}; inventory SHA-256: {report['inventory_sha256']}."
+        )
+        report["normalized_scenario"] = normalized
     boundary = ReplayBoundary(
         left - origin, {i: job.start - origin for i, job in enumerate(jobs, start=1) if job.start < left},
     )
@@ -417,15 +425,29 @@ def main() -> None:
     parser.add_argument("inventory", type=Path, help="Versioned JSON inventory and observation window")
     parser.add_argument("--policy", choices=POLICIES, default="fifo", help="Baseline replay policy (default: fifo)")
     parser.add_argument("--output", type=Path, help="Write report JSON to a file (default: stdout)")
+    parser.add_argument("--scenario-output", type=Path,
+                        help="Write the selected cohort as an empty-cluster scenario for the dashboard or configuration search")
     args = parser.parse_args()
     try:
         output = args.output.resolve() if args.output else None
-        if output is not None and output.exists():
-            if not stat.S_ISREG(output.stat().st_mode):
-                raise ValueError("report output must be a regular file")
-            if any(output.samefile(path) for path in (args.trace, args.inventory)):
-                raise ValueError("report output must differ from the trace and inventory paths")
-        report = build_report(args.trace.read_bytes(), args.inventory.read_bytes(), args.policy)
+        scenario_output = args.scenario_output.resolve() if args.scenario_output else None
+        if scenario_output is not None and output is not None and (
+            scenario_output == output or (scenario_output.exists() and output.exists() and scenario_output.samefile(output))
+        ):
+            raise ValueError("report and scenario outputs must differ")
+        for target in (output, scenario_output):
+            if target is not None and target.exists():
+                if not stat.S_ISREG(target.stat().st_mode):
+                    raise ValueError("output must be a regular file")
+                if any(target.samefile(path) for path in (args.trace, args.inventory)):
+                    raise ValueError("output must differ from the trace and inventory paths")
+        report = build_report(args.trace.read_bytes(), args.inventory.read_bytes(), args.policy,
+                              include_scenario=scenario_output is not None)
+        if scenario_output is not None:
+            if "normalized_scenario" not in report:
+                raise ValueError(f"Cannot export a scenario: {report['scope']}")
+            snapshot = report.pop("normalized_scenario")
+            write_report(scenario_output, json.dumps(snapshot, indent=2, allow_nan=False) + "\n")
         serialized = json.dumps(report, indent=2, allow_nan=False) + "\n"
         if output is None:
             sys.stdout.write(serialized)

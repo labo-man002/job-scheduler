@@ -88,3 +88,21 @@ def test_equal_aggregate_occupancy_can_hide_pointwise_errors():
     assert result["signed_gpu_seconds_error"] == 0
     assert result["absolute_pointwise_gpu_seconds_error"] == 16
     assert result["occupancy_mae"] == 1
+
+
+def test_exported_scenario_round_trips_without_observed_boundary(tmp_path, monkeypatch):
+    from app.experiments.replay_input import Scenario
+    from app.experiments.slurm_baseline import main
+
+    target = tmp_path / "scenario.json"
+    baseline = tmp_path / "baseline.json"
+    monkeypatch.setattr("sys.argv", ["slurm_baseline", str(EXAMPLE / "accounting.psv"),
+                        str(EXAMPLE / "inventory.json"), "--scenario-output", str(target), "--output", str(baseline)])
+    main()
+    scenario = Scenario.model_validate_json(target.read_bytes())
+    report = json.loads(baseline.read_bytes())
+    assert "empty-cluster counterfactual" in scenario.source
+    assert report["accounting_sha256"] in scenario.source
+    assert len(scenario.jobs) == report["included_jobs"]
+    assert report["boundary"]["running_count"] == 1
+    assert "normalized_scenario" not in report

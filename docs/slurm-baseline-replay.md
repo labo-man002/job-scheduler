@@ -50,3 +50,9 @@ Both occupancy series cover the same half-open horizon and selected cohort. Occu
 Starts are paired only when both timelines start the same job in the observation horizon. Carry-in starts are prior observations and excluded from start-error scoring. The report includes paired signed and absolute errors, class-level observed/simulated/paired eligible waits, largest discrepancies, unpaired starts, and counts. Empirical nearest-rank p95 on small samples is descriptive. Reasons for discrepancies remain hypotheses until joined with supporting Slurm evidence such as current policy, resource constraints, or job reasons. Backfill, fair-share, queue priority updates, reservations, node constraints, and job/runtime interactions may explain differences in real data.
 
 The JSON includes both input hashes, source notes, and checkout provenance when available. Keep raw accounting and output outside the repository unless the operator has approved sharing. The committed example contains only synthetic data. A real isolated trace with a matching independent inventory is still needed to establish fidelity against Slurm production behavior.
+
+## Reuse a cohort in a what-if experiment
+
+Add `--scenario-output /tmp/cohort.json` to the baseline command. Load that file as a scenario in the replay dashboard or give it to the configuration search CLI. It contains the selected jobs, eligibility offsets, fixed observed durations, mapped priorities, inventory and source hashes.
+
+The exported scenario starts with an empty cluster at the earlier of the observation window and the first included eligibility time. Jobs already running at the beginning of the historical window compete for resources again. Use the baseline report for comparisons against observed starts and occupancy. Its boundary initialization preserves previously running allocations. Both outputs inherit the same selection exclusions.

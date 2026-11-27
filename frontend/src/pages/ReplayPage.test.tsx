@@ -1,27 +1,51 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { expect, it, vi } from "vitest";
 import { api } from "@/api/client";
 import { ReplayPage } from "./ReplayPage";
 
 vi.mock("@/api/client", () => ({ api: { POST: vi.fn() } }));
 
-it("runs the selected scenario and clears results when the scenario changes", async () => {
-  const metrics = { occupancy: 0.5, completed: 1, unscheduled: 0, makespan_ticks_from_zero: 3, completed_jobs_per_hour: 20 };
-  vi.mocked(api.POST).mockImplementation((async () => ({
-    data: { source: "Synthetic test", seconds_per_tick: 60, fifo: metrics, priority: metrics, jobs: [] },
-    response: new Response(),
-  })) as typeof api.POST);
-  render(<QueryClientProvider client={new QueryClient()}><ReplayPage /></QueryClientProvider>);
+function SavedLocation() {
+  const { id } = useParams();
+  return <p>Saved run {id}</p>;
+}
+
+function openReplay() {
+  return render(<QueryClientProvider client={new QueryClient()}>
+    <MemoryRouter initialEntries={["/replay"]}><Routes>
+      <Route path="/replay" element={<ReplayPage />} />
+      <Route path="/replay/runs/:id" element={<SavedLocation />} />
+    </Routes></MemoryRouter>
+  </QueryClientProvider>);
+}
+
+it("retries an interrupted save with the same request ID and opens the persisted run", async () => {
+  const post = vi.mocked(api.POST);
+  post.mockRejectedValueOnce(new Error("Connection lost"));
+  post.mockImplementationOnce((async () => ({ data: { id: "saved" }, response: new Response() })) as typeof api.POST);
+  openReplay();
   const user = userEvent.setup();
   await user.selectOptions(screen.getByLabelText("Node count"), "2");
   await user.clear(screen.getByLabelText("Node 2 GPUs"));
   await user.type(screen.getByLabelText("Node 2 GPUs"), "4");
   await user.click(screen.getByRole("button", { name: "Run comparison" }));
-  expect(await screen.findByRole("region", { name: "Comparison results" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Both policies finished at 3 min." })).toBeInTheDocument();
-  expect(api.POST).toHaveBeenCalledWith("/replay/{scenario_name}", { params: { path: { scenario_name: "oracle" } }, body: { gpus_per_node: [2, 4] } });
-  await user.selectOptions(screen.getByLabelText("Scenario"), "contention");
-  expect(screen.queryByRole("region", { name: "Comparison results" })).toBeNull();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
+  await user.click(screen.getByRole("button", { name: "Retry comparison" }));
+  expect(await screen.findByText("Saved run saved")).toBeVisible();
+  expect(post.mock.calls[0]).toEqual(["/replay/runs", {body: {
+    request_id: expect.any(String), preset: "oracle", gpus_per_node: [2, 4],
+  }}]);
+  expect(post.mock.calls[1]).toEqual(post.mock.calls[0]);
+});
+
+it("keeps an invalid scenario file out of the replay request", async () => {
+  openReplay();
+  const user = userEvent.setup();
+  await user.selectOptions(screen.getByLabelText("Scenario"), "import");
+  await user.upload(screen.getByLabelText("Scenario JSON file"), new File(["{}"], "invalid.json", {type: "application/json"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("compatible replay");
+  expect(screen.getByRole("button", {name:"Run comparison"})).toBeDisabled();
 });

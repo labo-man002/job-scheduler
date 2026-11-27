@@ -40,6 +40,6 @@ export function ReplaySummary({ result, capacity }: { result: Comparison; capaci
       FIFO allocated {fifoGpuTime} available GPU-ticks. Priority allocated {priorityGpuTime}.
       {" "}One GPU-tick means reserving one GPU for {time(1)}. Job execution times are fixed in this experiment.
     </p>}
-    {rejected.length > 0 && <p className="text-sm">Jobs exceeding this cluster’s {capacity}-GPU capacity: {rejected.map(job => "#" + job.id + " (" + job.gpus + " GPUs requested)").join(", ")}.</p>}
+    {rejected.length > 0 && <p className="text-sm">Jobs exceeding this cluster’s {capacity}-GPU capacity: {rejected.slice(0, 10).map(job => "#" + job.id + " (" + job.gpus + " GPUs requested)").join(", ")}{rejected.length > 10 ? ` and ${rejected.length - 10} more` : ""}.</p>}
   </section>;
 }

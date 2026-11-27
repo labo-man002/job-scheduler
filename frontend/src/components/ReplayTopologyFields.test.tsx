@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it } from "vitest";
-import { ReplayTopologyFields, resizeReplayTopology } from "./ReplayTopologyFields";
-import type { ReplayTopology } from "./ReplayTopologyFields";
+import { ReplayTopologyFields } from "./ReplayTopologyFields";
+import { resizeReplayTopology, type ReplayTopology } from "@/lib/replayTopology";
 
 function FabricEditor() {
   const [value, setValue] = useState<ReplayTopology>({ kind: "linear" });

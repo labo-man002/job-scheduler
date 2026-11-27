@@ -2,24 +2,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { loadReplayRun, renameReplayRun, type ReplayRun } from "@/api/replay";
+import { ReplayRows } from "@/components/ReplayRows";
 import { ReplaySummary } from "@/components/ReplaySummary";
 import { Button } from "@/components/ui/button";
 
-export const replayPolicies = ["fifo", "priority"] as const;
-export const policyLabels = { fifo: "FIFO", priority: "Priority" };
-type ReplayPolicy = typeof replayPolicies[number];
-
-export function runName(run: Pick<ReplayRun, "display_name" | "workload_label">) {
-  return run.display_name || run.workload_label;
-}
-
-export function clusterShape(counts: readonly number[]) {
-  return `${counts.length} ${counts.length === 1 ? "node" : "nodes"} · ${counts.join(" + ")} GPUs`;
-}
-
-export function runTime(iso: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(new Date(iso));
-}
+import { clusterShape, policyLabels, replayPolicies, runName, runTime, type ReplayPolicy } from "@/lib/replayDisplay";
 
 function RenameRun({ run }: { run: ReplayRun }) {
   const [name, setName] = useState(run.display_name ?? "");
@@ -62,15 +49,15 @@ function RecordedLedgers({ run }: { run: ReplayRun }) {
       const events = run.outputs.runs.find(raw => raw.policy === policy)?.events;
       return <details className="rounded-lg border p-3" key={policy}>
         <summary className="cursor-pointer font-medium">{policyLabels[policy]} events</summary>
-        {Array.isArray(events) ? <ol className="mt-3 divide-y overflow-x-auto text-sm">
-          {events.map((event, index) => <li key={index} className="py-2">
+        {Array.isArray(events) ? <ReplayRows rows={events} label={policyLabels[policy] + " events"}>{visible => <ol className="mt-3 divide-y overflow-x-auto text-sm">
+          {visible.map((event, index) => <li key={index} className="py-2">
             Tick {event.tick} · Job {event.job_id} · {event.kind}
             {event.reason && <span className="ml-2 text-muted-foreground">{String(event.reason).replaceAll("_", " ")}</span>}
             {Array.isArray(event.gpus) && <span className="ml-2 text-muted-foreground">
               {event.gpus.map((gpu: { node_id: number; index: number }) => `node ${gpu.node_id} GPU ${gpu.index}`).join(", ")}
             </span>}
           </li>)}
-        </ol> : <p className="mt-3 text-sm text-muted-foreground">Event ledger unavailable for this run.</p>}
+        </ol>}</ReplayRows> : <p className="mt-3 text-sm text-muted-foreground">Event ledger unavailable for this run.</p>}
       </details>;
     })}
   </section>;
@@ -99,18 +86,18 @@ function SavedResults({ run }: { run: ReplayRun }) {
         </article>;
       })}
     </div>
-    <div className="overflow-x-auto">
+    <ReplayRows rows={result.jobs} label="Jobs">{visible => <div className="overflow-x-auto">
       <table className="w-full text-left text-sm tabular-nums">
         <caption className="pb-3 text-left font-semibold">Queue wait and finish by job (ticks)</caption>
         <thead><tr>{["Job", "Priority", "GPUs", "FIFO wait", "FIFO finish", "Priority wait", "Priority finish", "Reason"].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead>
-        <tbody>{result.jobs.map(job => <tr key={job.id} className="border-t">
+        <tbody>{visible.map(job => <tr key={job.id} className="border-t">
           <th scope="row" className="p-2">{job.id}</th><td>{job.priority}</td><td>{job.gpus}</td>
           <td>{job.fifo_wait ?? "Unscheduled"}</td><td>{fifoFinishes.get(job.id) ?? "—"}</td>
           <td>{job.priority_wait ?? "Unscheduled"}</td><td>{priorityFinishes.get(job.id) ?? "—"}</td>
           <td>{job.reason?.replaceAll("_", " ") ?? "—"}</td>
         </tr>)}</tbody>
       </table>
-    </div>
+    </div>}</ReplayRows>
     <RecordedLedgers run={run} />
   </section>;
 }

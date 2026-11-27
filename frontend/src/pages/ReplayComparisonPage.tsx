@@ -1,7 +1,8 @@
 import { useQueries } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { loadReplayRun, type Comparison, type ReplayRun } from "@/api/replay";
-import { policyLabels, replayPolicies, runName } from "./ReplayRunPage";
+import { ReplayRows } from "@/components/ReplayRows";
+import { policyLabels, replayPolicies, runName } from "@/lib/replayDisplay";
 
 const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
 const signed = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3, signDisplay: "exceptZero" });
@@ -29,6 +30,9 @@ function metricRows(baseline: Comparison, alternative: Comparison, policy: Repla
   const before = baseline[policy];
   const after = alternative[policy];
   return [
+    { label: "Completed jobs", before: before.completed, after: after.completed },
+    { label: "Last completion from trace origin (s)", before: before.makespan_ticks_from_zero * baseline.seconds_per_tick,
+      after: after.makespan_ticks_from_zero * alternative.seconds_per_tick },
     { label: "Mean wait of completed jobs (s)", before: meanWait(baseline, policy), after: meanWait(alternative, policy) },
     { label: "Unscheduled jobs", before: before.unscheduled, after: after.unscheduled },
     { label: "GPU occupancy (%)", deltaUnit: " pp", before: before.occupancy == null ? null : before.occupancy * 100,
@@ -47,12 +51,12 @@ function JobWaits({ baseline, alternative }: { baseline: Comparison; alternative
       : signed.format(after * alternative.seconds_per_tick - before * baseline.seconds_per_tick);
   return <details className="rounded-lg border p-3">
     <summary className="cursor-pointer font-semibold">Per-job waits (seconds)</summary>
-    <div className="overflow-x-auto">
+    <ReplayRows rows={baseline.jobs} label="Jobs">{visible => <div className="overflow-x-auto">
       <table className="mt-3 w-full text-left text-sm tabular-nums">
         <caption className="sr-only">Per-job wait comparison in seconds</caption>
         <thead><tr>{["Job", "FIFO baseline", "FIFO alternative", "FIFO Δ", "Priority baseline", "Priority alternative", "Priority Δ"].map(label =>
           <th scope="col" key={label} className="p-2">{label}</th>)}</tr></thead>
-        <tbody>{baseline.jobs.map(job => {
+        <tbody>{visible.map(job => {
           const other = indexed.get(job.id);
           return <tr key={job.id} className="border-t">
             <th scope="row" className="p-2">{job.id}</th>
@@ -65,7 +69,7 @@ function JobWaits({ baseline, alternative }: { baseline: Comparison; alternative
           </tr>;
         })}</tbody>
       </table>
-    </div>
+    </div>}</ReplayRows>
   </details>;
 }
 
@@ -76,7 +80,8 @@ function RunComparison({ baseline, alternative }: { baseline: ReplayRun; alterna
   const newResult = alternative.outputs.comparison;
   const traceKnown = Boolean(oldInputs.trace_sha256 && newInputs.trace_sha256);
   const sameTrace = traceKnown && oldInputs.trace_sha256 === newInputs.trace_sha256;
-  const describeNodes = (run: ReplayRun) => run.inputs.scenario.nodes.map(node => `node ${node.id}: ${node.gpus} GPUs`).join(" · ");
+  const describeNodes = (run: ReplayRun) => Array.isArray(run.inputs.scenario.nodes)
+    ? run.inputs.scenario.nodes.map(node => `node ${node.id}: ${node.gpus} GPUs`).join(" · ") : "Unavailable";
   const describeQueue = (run: ReplayRun) => run.inputs.queue_policies.join(", ");
   const inputs = [
     { label: "Trace SHA-256", before: oldInputs.trace_sha256, after: newInputs.trace_sha256 },
